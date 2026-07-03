@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-Here (in CONVERSATION.md) is the conversation i had with a friend, it describes almost exactly what i want for our game. Read it, make a complete and accurate and explicit and big plan to make this project live and write it under PLAN.md.
+This is a freshly created Godot project named `prison`. It currently contains no scenes, scripts, or
+source code — only the default project scaffold (`project.godot`, default icon, editor config files).
+There is no established architecture yet; when adding the first scenes/scripts, use standard Godot 4
+conventions (scenes in `.tscn`, scripts attached to nodes) since there is no existing pattern to follow.
 
 ## Engine configuration (from `project.godot`)
 
