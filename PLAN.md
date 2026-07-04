@@ -88,6 +88,10 @@ These principles should override any local decision that conflicts with them. If
 
 8. **Generate, then improve — never expect one algorithm to produce a finished, beautiful prison in one pass.** Procedural generation is a pipeline of specialized passes (layout → validation → style → decoration → story → scoring), not a single monolithic generator.
 
+9. **Difficulty is a one-way ratchet toward an aspirational "perfect prison" — escapability is never a design requirement.** The Evolution AI's long-term goal is not "balance" — it is a slow, targeted march toward a maximally secure, hypothetically perfect prison. A generated prison is **never required to remain escapable**, and "is an escape route possible?" is deliberately **not** part of the generation-validation pipeline (§8.4). What *is* required, unconditionally, on every generation no matter how secure it becomes: it must remain **enjoyable to play** and it must remain **believable** — a reasonable person should feel this facility could plausibly exist in the real world. Escapes becoming rarer, and eventually vanishingly rare, for a long-lived family is the intended endgame, not a failure state.
+
+10. **No Kubernetes.** Backend and dedicated-server infrastructure is deployed with Docker Compose, driven by CI/CD (GitHub Actions). Orchestration complexity beyond that is not justified at this project's current scale — do not introduce Kubernetes (or an equivalent) without an explicit, documented reason revisiting this pillar.
+
 ---
 
 ## 3. Glossary
@@ -130,8 +134,8 @@ These principles should override any local decision that conflicts with them. If
    (headless, official)     (headless or in-client)     Evolution Service
          │                         │                         │
          └────────────┬────────────┘                         │
-                       │                                      │
-                  Backend Services  ◄─────────────────────────┘
+                      │                                      │
+                 Backend Services  ◄─────────────────────────┘
      (PostgreSQL, Redis, Object Storage, Message Bus, Observability)
 ```
 
@@ -208,6 +212,7 @@ Backend
 | Configuration | **TOML or YAML** | Human-readable server/gameplay configuration files. |
 | Metrics/Observability | **Prometheus + Grafana** | CPU, AI timings, player counts, server health — critical because this game's whole premise depends on measuring itself. |
 | CI/CD | **GitHub Actions** | Automated builds, tests, and dedicated-server deployment. |
+| Deployment / Orchestration | **Docker Compose** (explicitly **not** Kubernetes) | Every backend service and the dedicated game server ship as containers, defined in `infra/` Compose stacks. GitHub Actions builds images and drives deploys (e.g., pushing images and re-running `docker compose up -d` on target hosts). See "Why not Kubernetes?" below. |
 | Data definitions | **JSON or YAML** during development, compiled to an optimized binary cache at build time | Human-editable content, fast runtime loading. |
 
 ### Why not Java or C++?
@@ -216,6 +221,10 @@ Backend
 - **C++** offers maximum control but roughly doubles development time; unnecessary unless building a fully custom engine with a larger team.
 - **Rust** has excellent server/networking/ECS characteristics but a younger game ecosystem; a reasonable future consideration for a rewrite of specific backend services, not the initial choice.
 - **C# + Godot** gives the best balance of developer productivity, ecosystem maturity, and performance for a project of this ambition, while satisfying the open-source engine requirement.
+
+### Why not Kubernetes? (Design Pillar #10)
+
+Kubernetes solves problems this project does not have yet: multi-node auto-scaling, complex rolling deployments across a large cluster, and self-healing at a scale far beyond a handful of backend services and a set of dedicated game servers. Adopting it now would mean paying its operational complexity tax (a cluster to run, YAML manifests, RBAC, ingress controllers, etc.) for no corresponding benefit. **Docker Compose** — one `docker-compose.yml` (or a small set of them) per environment, deployed via CI/CD — is sufficient for: standing up the full backend stack (§11) locally and in production, running one or more dedicated game servers per host, and giving player-hosts a simple, copyable way to self-host a Community prison server (§10.1) without needing to understand container orchestration at all. Revisit this decision only if/when the number of independently-scaling services or hosts genuinely outgrows what Compose can reasonably manage — and if so, record that as an ADR (§15) rather than silently introducing Kubernetes.
 
 ---
 
@@ -263,7 +272,7 @@ prison/
 │   ├── accounts/
 │   ├── matchmaking/
 │   └── admin-dashboard/
-├── infra/                    # Deployment manifests, docker-compose / k8s configs, CI pipelines, monitoring configs
+├── infra/                    # Docker Compose stacks (no Kubernetes — Pillar #10), CI pipeline definitions, monitoring configs
 ├── docs/                     # Design docs, architecture decision records (ADRs), onboarding guide
 ├── CONVERSATION.md            # Original design discussion (historical reference)
 ├── PLAN.md                    # This document
@@ -612,8 +621,9 @@ Random Seed + Family DNA/Doctrine
       │                     nobody memorizes exteriors the way they memorize interiors, so pure procedural
       │                     generation is acceptable here, unlike interiors)
       ▼
-10. Quality Scoring       (symmetry, visual variety, walking distances, guard coverage, escape-opportunity
-      │                     balance, room proportions, density — reject and regenerate if below threshold)
+10. Quality Scoring       (believability/realism, enjoyability, symmetry, visual variety, walking distances,
+      │                     guard coverage, room proportions, density — reject and regenerate if below
+      │                     threshold; escapability is deliberately not scored, see §8.4)
       ▼
 11. Simulation Testing    (run AI-only simulations: do guards patrol smoothly? do prisoners get stuck? does
       │                     lunchtime create traffic jams? are there blind spots? reject if problems found)
@@ -625,16 +635,22 @@ Introduce deliberate small imperfections after symmetric layout generation (one 
 
 ### 8.4 Validation & Scoring
 
-Before any generated prison is deployable, it must pass automated structural tests, for example:
+**Escapability is deliberately not a validation criterion.** Per Design Pillar #9, the long-term goal is a prison that becomes ever harder — potentially, for an old and much-evolved family, practically impossible to escape. Testing "can this prison still be escaped?" and rejecting candidates that fail it would directly fight the game's own core loop, so that test is intentionally excluded from this pipeline. (An earlier draft of this plan included such a test; it has been deliberately removed.)
 
-- Can every prisoner reach food? (Yes required)
-- Can guards patrol every relevant area? (Yes required)
-- Is every cell reachable? (Yes required)
-- Can the prison deadlock (e.g., a door loop with no valid unlock path)? (No required)
-- Does a minimum viable escape path exist? (Yes required — an unbeatable prison is a design failure, not a win)
-- Is performance (pathfinding cost, entity density) acceptable at the target simulation budget?
+What *is* required, unconditionally, on every candidate regardless of how secure it has become:
 
-Only prisons passing all structural tests proceed to scoring (symmetry, visual variety, walking distances, guard coverage, escape-opportunity balance, room proportions, empty space, density). Failing or low-scoring candidates are discarded and regenerated — this loop happens **offline, before any player ever sees the result** (see §9.3 for how this fits the "generate several candidates, pick the best" strategy).
+**A. Structural/functional validation (binary pass/fail — the prison must simply work as a facility):**
+- Can every prisoner reach food, their assigned cell, work assignments, and medical care per the schedule? (Yes required)
+- Can guards and staff reach every area they need to patrol, maintain, or respond to? (Yes required)
+- Is every cell reachable by staff (for searches, escort, emergencies)? (Yes required)
+- Can the prison deadlock (e.g., a door/keycard loop with no valid path for required logistics)? (No required)
+- Is performance (pathfinding cost, entity density) acceptable at the target simulation budget? (Yes required)
+
+**B. Believability & enjoyability validation (required on every candidate, not optional polish):**
+- **Realism/plausibility** — would a reasonable person believe this facility could exist in the real world? Reject layouts that are structurally valid but architecturally absurd (physically implausible room adjacencies, nonsensical circulation, security theater with no coherent logic).
+- **Enjoyability** — is the space interesting to move through and interact with, regardless of how hard it is to escape? Reject candidates that are merely tedious mazes, monotonous corridors, or featureless boxes — high security must be expressed through interesting, legible design (checkpoints, sightlines, varied room shapes), not through boredom.
+
+Only candidates passing **all** of (A) and (B) proceed to Quality Scoring — symmetry, visual variety, walking distances, guard coverage, room proportions, empty space, density (§8.3 step 10). Failing or low-scoring candidates are discarded and regenerated — this loop happens **offline, before any player ever sees the result** (see §9.3 for how this fits the "generate several candidates, pick the best" strategy).
 
 ### 8.5 Exterior Generation
 
@@ -678,7 +694,9 @@ Escape Logs → Escape Analyzer → Weakness Scores → Evolution/Rule Engine
                                                  New Prison Candidate(s)
 ```
 
-A rule-based/evolutionary-algorithm approach produces the feeling of an adaptive, learning prison while remaining understandable, debuggable, and controllable by the team — this matters enormously for balance and for explaining to players (and to yourselves) *why* a prison changed a specific way. Machine-learned models can be introduced later for narrow, well-scoped subtasks (e.g., optimizing patrol routes, predicting likely escape paths) once the rule-based foundation is solid and well-instrumented — the core evolutionary game loop does not require neural networks to deliver its central fantasy.
+A rule-based/evolutionary-algorithm approach produces the feeling of an adaptive, learning prison while remaining understandable, debuggable, and controllable by the team — this matters enormously for explaining to players (and to yourselves) *why* a prison changed a specific way. Machine-learned models can be introduced later for narrow, well-scoped subtasks (e.g., optimizing patrol routes, predicting likely escape paths) once the rule-based foundation is solid and well-instrumented — the core evolutionary game loop does not require neural networks to deliver its central fantasy.
+
+**The mutation engine is a one-way ratchet, not a balancer (Pillar #9).** Its objective function is *not* "keep this prison beatable" or "keep win rate near X%" — there is no target escape rate to balance toward. Each mutation should be a *targeted, permanent* countermeasure to a real, observed weakness (per the Escape Analyzer's signals, §9.1), and mutations should not be walked back later just because a prison has become hard to escape. The only forces that can veto or reshape a mutation are the Believability & Enjoyability validation gates (§8.4) and, optionally, an administrator (§9.3) — never "it's gotten too hard." Over hundreds of generations, a family is expected to trend toward a very low, possibly near-zero escape rate; that is success, not a bug to fix. This is also why aggregating across many escapes (not just the latest one) matters so much for a given mutation — it keeps the ratchet targeted at real, recurring weaknesses instead of overreacting to a single lucky or exploit-driven run.
 
 ### 9.3 Candidate Generation & Human Approval Gate
 
@@ -970,7 +988,8 @@ This roadmap sequences the system design above into buildable phases. Each phase
 - Decide and integrate an ECS approach for `shared/` (evaluate a proven lightweight C# ECS library first; fall back to custom only if integration friction is too high — record the decision as an ADR).
 - Set up structured logging (Serilog) and a config format (TOML/YAML) from the start.
 - Set up CI (GitHub Actions): build client, build server, run unit tests, on every push.
-- **Deliverable:** an empty but running Godot project with a headless server stub, shared ECS library wired into both, CI green.
+- Author the first `infra/` Docker Compose stack (even if it only contains a placeholder server container) and a CI job that builds and pushes its image — establish the Compose-based deployment habit immediately rather than bolting it on later (Pillar #10, no Kubernetes).
+- **Deliverable:** an empty but running Godot project with a headless server stub, shared ECS library wired into both, CI green, and a working (even if trivial) Docker Compose deploy path.
 
 ### Phase 1 — Core Simulation Skeleton (single-player, hand-built test map, no AI, no generation, no networking)
 - Implement the layered World/Tile system (§7.2) with a small hand-authored test prison.
@@ -1005,8 +1024,8 @@ This roadmap sequences the system design above into buildable phases. Each phase
 - Build an initial Functional Blueprint library (~10–15 blueprints covering the core room types) and its data format (§8.2, §17).
 - Implement District/Zone planning and Circulation generation (§8.3 steps 1–3).
 - Implement Blueprint assembly with basic architectural grammar rules (§8.3 step 4).
-- Implement automated Validation tests (reachability, no deadlocks, minimum escape path, patrol coverage) (§8.4).
-- Implement a first, simple Quality Scoring function (§8.4).
+- Implement automated structural Validation tests (reachability of food/cells/work/medical, no deadlocks, patrol coverage — deliberately **no** escapability check, §8.4).
+- Implement a first, simple Quality Scoring function, including basic believability/enjoyability heuristics (§8.4).
 - Build a standalone CLI/preview tool under `tools/` so designers can generate and inspect prisons **without launching the full game client** — iteration speed here matters enormously.
 - **Deliverable:** the offline tool can generate a structurally valid, connected, reachable prison from a Design Intent, and reject/regenerate failures automatically.
 
@@ -1044,7 +1063,7 @@ This roadmap sequences the system design above into buildable phases. Each phase
 - Implement the rule-based Evolution/Rule Engine mutating DNA/Doctrine from weakness signals (§9.2).
 - Implement multi-candidate generation, automated validation/scoring reuse from Phase 5–6, and best-candidate selection (§9.3).
 - Build the (initially minimal) admin approval gate UI/API (§9.3, §10.4).
-- **Deliverable:** feeding a batch of recorded test escapes into the Evolution service produces a measurably different, specifically-countering next generation of the same prison family, without any human intervention required.
+- **Deliverable:** feeding a batch of recorded test escapes into the Evolution service produces a measurably *harder*, specifically-countering next generation of the same prison family (never a softer one), which still passes the Believability & Enjoyability gates (§8.4), without any human intervention required.
 
 ### Phase 11 — Prison Lifecycle & Hosting Model
 - Implement the `Prisons` metadata model (`HostType`, `Visibility`, `Status`, `ParentPrisonId`, etc.) (§10.1, §11.1).
@@ -1103,6 +1122,9 @@ These are called out explicitly so they are tracked and revisited, not silently 
 - **Legitimacy verification for escapes** (distinguishing a real strategic escape from an exploit/bug) is only partially solved by the admin approval gate (§9.3) — this may need dedicated anti-cheat/anomaly-detection tooling as the player base grows.
 - **Community/self-hosted server support burden** — player-hosted servers running the same authoritative simulation code (§7.11, §10.1) need a smooth, well-documented setup path, or this pillar of the design (friend-hosted prisons) will go unused in practice.
 - **Modding scope** — §13 deliberately scopes modding to data-only for the initial plan; if/when script-level mod hooks are introduced, sandboxing and security need dedicated design work before that door is opened.
+- **Long-lived families may become effectively unescapable, which is intended (Pillar #9) but needs a design answer for player experience** — decide, before Phase 13's real playtesting, what happens for players facing a very old, heavily-evolved family: e.g., letting new players default to younger/easier families, exposing a family's approximate "age"/difficulty tier before joining, or leaning into "beating an ancient, near-perfect prison" as a rare, high-prestige achievement. The plan intentionally does not pre-decide this — it should be settled with real data from Phase 13, not guessed at now.
+- **Believability/enjoyability scoring (§8.4) is inherently more subjective than the structural checks it sits alongside** — unlike reachability/deadlock checks, "does this feel real" and "is this fun" cannot be fully automated with confidence at first. Expect this to start as a mix of heuristics plus human-in-the-loop review (§9.3's admin gate) and to only gradually become more automated as the team learns which heuristics actually correlate with human judgment.
+- **Docker Compose scaling ceiling (Pillar #10)** — Compose is the right choice today, but if official infrastructure eventually needs to run many dedicated servers across many hosts with automated failover, revisit this deliberately (as an ADR) rather than drifting into ad hoc orchestration scripts that become a worse, unofficial Kubernetes.
 
 ---
 
