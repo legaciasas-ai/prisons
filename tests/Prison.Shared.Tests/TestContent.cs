@@ -1,3 +1,4 @@
+using Prison.Shared.Generation;
 using Prison.Shared.Items;
 using Prison.Shared.Utilities;
 using Prison.Shared.World;
@@ -14,8 +15,11 @@ public sealed class TestContent
         Tiles = TileRegistry.LoadFromDirectory(Path.Combine(root, "tiles"));
         Items = ItemRegistry.LoadFromDirectory(Path.Combine(root, "items"));
         Recipes = RecipeDefinition.LoadFromDirectory(Path.Combine(root, "recipes"));
+        Blueprints = BlueprintDefinition.LoadFromDirectory(Path.Combine(root, "rooms"));
         Map = MapDefinition.Load(Path.Combine(root, "maps", "test_prison.json"));
     }
+
+    public IReadOnlyList<BlueprintDefinition> Blueprints { get; }
 
     public TileRegistry Tiles { get; }
 

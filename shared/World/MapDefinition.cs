@@ -29,6 +29,9 @@ public sealed record MapDefinition
 
     public List<MapDoor> Doors { get; init; } = [];
 
+    /// <summary>Room placements, filled by the generation pipeline (empty on hand-authored maps).</summary>
+    public List<MapRoom> Rooms { get; init; } = [];
+
     public MapSpawn PlayerSpawn { get; init; } = new();
 
     public sealed record LegendEntry
@@ -85,6 +88,21 @@ public sealed record MapDefinition
 
         [JsonIgnore]
         public TilePos Position => new(X, Y, Floor);
+    }
+
+    public sealed record MapRoom
+    {
+        /// <summary>Blueprint id this room was stamped from.</summary>
+        public required string Id { get; init; }
+        public required string Type { get; init; }
+        public int Floor { get; init; }
+        public int X0 { get; init; }
+        public int Y0 { get; init; }
+        public int X1 { get; init; }
+        public int Y1 { get; init; }
+
+        public bool Contains(TilePos pos) =>
+            pos.Floor == Floor && pos.X >= X0 && pos.X <= X1 && pos.Y >= Y0 && pos.Y <= Y1;
     }
 
     public sealed record MapItem

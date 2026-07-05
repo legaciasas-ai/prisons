@@ -1,0 +1,14 @@
+{
+  "id": "laundry_small",
+  "type": "laundry",
+  "rows": [
+    "########",
+    "#mmmmmm#",
+    "#mmmmmm#",
+    "#......#",
+    "#......#",
+    "###DD###"
+  ],
+  "items": [{ "id": "guard_uniform", "x": 6, "y": 2 }],
+  "tags": []
+}

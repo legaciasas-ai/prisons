@@ -1,0 +1,13 @@
+{
+  "id": "kitchen_small",
+  "type": "kitchen",
+  "rows": [
+    "########",
+    "#mmmmmm#",
+    "#mmmmmm#",
+    "#mmmmmm#",
+    "#mmmmmm#",
+    "###DD###"
+  ],
+  "tags": []
+}

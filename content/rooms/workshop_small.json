@@ -1,0 +1,17 @@
+{
+  "id": "workshop_small",
+  "type": "workshop",
+  "rows": [
+    "##########",
+    "#mmmmmmmm#",
+    "#mmmmmmmm#",
+    "#mmmmmmmm#",
+    "#mmmmmmmm#",
+    "####DD####"
+  ],
+  "items": [
+    { "id": "scrap_metal", "x": 2, "y": 2 },
+    { "id": "wire", "x": 7, "y": 3 }
+  ],
+  "tags": []
+}

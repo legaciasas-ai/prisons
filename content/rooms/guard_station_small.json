@@ -1,0 +1,13 @@
+{
+  "id": "guard_station_small",
+  "type": "guard_station",
+  "rows": [
+    "########",
+    "#......#",
+    "#......#",
+    "#......#",
+    "#......#",
+    "##gDDg##"
+  ],
+  "tags": ["restricted"]
+}

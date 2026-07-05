@@ -1,0 +1,13 @@
+{
+  "id": "showers_small",
+  "type": "showers",
+  "rows": [
+    "########",
+    "#mmmmmm#",
+    "#mmmmmm#",
+    "#mmmmmm#",
+    "#mmmmmm#",
+    "###DD###"
+  ],
+  "tags": []
+}
