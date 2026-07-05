@@ -22,8 +22,10 @@ public static class MatchSave
     /// <summary>v1: initial format. v2: adds the door 'open' flag.</summary>
     public const int CurrentVersion = 2;
 
+    // Guards deliberately carry no ThreatScore (it is a prisoner-only component), so the
+    // actor query must not require it — their threat slot is written as 0 in the stream.
     private static readonly QueryDescription Actors =
-        new QueryDescription().WithAll<Position, Facing, ThreatScore>();
+        new QueryDescription().WithAll<Position, Facing>();
 
     private static readonly QueryDescription Doors = new QueryDescription().WithAll<Door>();
 
@@ -88,7 +90,7 @@ public static class MatchSave
 
         // Actors, with a stable save-index so beliefs can reference each other.
         var actors = new List<Entity>();
-        ecs.Query(in Actors, (Entity entity, ref Position _, ref Facing _, ref ThreatScore _) => actors.Add(entity));
+        ecs.Query(in Actors, (Entity entity, ref Position _, ref Facing _) => actors.Add(entity));
         var indexOf = actors.Select((entity, i) => (entity, i)).ToDictionary(p => p.entity, p => p.i);
 
         w.Write(actors.Count);
@@ -102,7 +104,7 @@ public static class MatchSave
             w.Write(position.Y);
             w.Write(position.Floor);
             w.Write(ecs.Get<Facing>(actor).Radians);
-            w.Write(ecs.Get<ThreatScore>(actor).Threat);
+            w.Write(ecs.Has<ThreatScore>(actor) ? ecs.Get<ThreatScore>(actor).Threat : 0f);
 
             var inventory = ecs.Has<Inventory>(actor) ? ecs.Get<Inventory>(actor).Items : [];
             w.Write(inventory.Count);
@@ -154,10 +156,16 @@ public static class MatchSave
 
     // ---------- load ----------
 
-    public static MatchHandle Load(Stream stream, MapDefinition map, TileRegistry tiles,
+    /// <summary>
+    /// Restores a match into <paramref name="world"/>, which must be freshly built from the
+    /// same map (<c>map.BuildWorld(tiles)</c>) — the caller keeps the reference for rendering,
+    /// exactly as with <see cref="MatchFactory.Create"/>.
+    /// </summary>
+    public static MatchHandle Load(Stream stream, WorldGrid world, MapDefinition map,
         ItemRegistry itemRegistry, IReadOnlyList<RecipeDefinition> recipes,
         ILoggerFactory? loggerFactory = null)
     {
+        var tiles = world.Tiles;
         using var r = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         if (Encoding.ASCII.GetString(r.ReadBytes(4)) != Magic)
             throw new InvalidDataException("Not a prison save file");
@@ -176,8 +184,7 @@ public static class MatchSave
         for (var i = 0; i < tableSize; i++)
             tileIdOf[i] = tiles.IdOf(r.ReadString());
 
-        // Rebuild the world from the map (stairs/zones/lights), then restore mutated layers.
-        var world = map.BuildWorld(tiles);
+        // The caller rebuilt the world from the map (stairs/zones/lights); restore mutated layers.
         var floorCount = r.ReadInt32();
         if (floorCount != world.FloorCount)
             throw new InvalidDataException("Save floor count does not match the map");
@@ -277,8 +284,9 @@ public static class MatchSave
                 }));
             }
 
+            // Same composition as MatchFactory.SpawnGuard — guards carry no ThreatScore.
             actors[i] = ecs.Create(position, new GuardTag(), facing, vision, new Footsteps(),
-                state, beliefs, new NavAgent(), route, threat);
+                state, beliefs, new NavAgent(), route);
             if (chaseIndex >= 0)
                 pendingChase.Add((i, chaseIndex));
         }
