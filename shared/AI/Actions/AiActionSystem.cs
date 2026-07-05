@@ -14,7 +14,8 @@ namespace Prison.Shared.AI.Actions;
 /// and lowers observed threat — the full escort action arrives with later phases.
 /// </summary>
 public sealed class AiActionSystem(
-    WorldGrid world, PathfindingService pathfinding, TilePos cellSpawn, EventBus events) : ISimulationSystem
+    WorldGrid world, PathfindingService pathfinding, TilePos cellSpawn, EventBus events,
+    Scheduling.SimulationBudget budget) : ISimulationSystem
 {
     public const float PatrolSpeed = 2.5f;
     public const float InvestigateSpeed = 3.2f;
@@ -37,14 +38,37 @@ public sealed class AiActionSystem(
         {
             var guardTile = new TilePos((int)MathF.Floor(position.X), (int)MathF.Floor(position.Y), position.Floor);
 
+            // Priority-based CPU allocation (§7.10 table): a guard near a player gets its
+            // pathfinding served before the same activity far from anyone.
+            var lod = SimulationDetail.Of(ecsWorld, guard);
+            var priorityBonus = lod == Scheduling.SimulationLod.Full ? 10 : 0;
+
             switch (state.Action)
             {
                 case GuardAction.Patrol:
+                    // LOD 3/4 (§7.10): no pathfinding, no animation — discrete event
+                    // resolution ("guard reached the cafeteria", instantly, on a slow cadence).
+                    if (lod >= Scheduling.SimulationLod.EventOnly)
+                    {
+                        ref var detail = ref ecsWorld.Get<SimulationDetail>(guard);
+                        if (tick >= detail.NextEventTick)
+                        {
+                            detail.NextEventTick = tick + budget.EventOnlyHopTicks;
+                            position = new Position(route.Current.X + 0.5f, route.Current.Y + 0.5f, route.Current.Floor);
+                            route.Advance();
+                            nav.Clear();
+                            // The hop is bookkeeping, not movement: no footstep noise burst.
+                            if (ecsWorld.Has<Footsteps>(guard))
+                                ecsWorld.Set(guard, new Footsteps());
+                        }
+                        break;
+                    }
+
                     nav.SpeedTilesPerSecond = PatrolSpeed;
                     if (guardTile == route.Current)
                         route.Advance();
                     if (nav.Idle || nav.Destination != route.Current)
-                        nav.SetDestination(guardTile, route.Current, pathfinding, priority: 30);
+                        nav.SetDestination(guardTile, route.Current, pathfinding, priority: 30 + priorityBonus);
                     break;
 
                 case GuardAction.Investigate:
@@ -74,7 +98,7 @@ public sealed class AiActionSystem(
                     }
                     else
                     {
-                        nav.SetDestination(guardTile, spot, pathfinding, priority: 70);
+                        nav.SetDestination(guardTile, spot, pathfinding, priority: 70 + priorityBonus);
                     }
 
                     break;
@@ -115,7 +139,7 @@ public sealed class AiActionSystem(
                     }
                     else
                     {
-                        nav.SetDestination(guardTile, belief.LastKnown, pathfinding, priority: 90);
+                        nav.SetDestination(guardTile, belief.LastKnown, pathfinding, priority: 90 + priorityBonus);
                     }
 
                     break;

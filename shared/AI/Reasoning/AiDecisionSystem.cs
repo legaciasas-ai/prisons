@@ -12,7 +12,7 @@ namespace Prison.Shared.AI.Reasoning;
 /// never every tick (§7.10). Scores are seeded from the plan's reference numbers
 /// (patrol 12, investigate 55, chase 91, arrest 100).
 /// </summary>
-public sealed class AiDecisionSystem(EventBus events) : ISimulationSystem
+public sealed class AiDecisionSystem(EventBus events, Scheduling.SimulationBudget budget) : ISimulationSystem
 {
     public const float PatrolScore = 12f;
     public const float InvestigateSoundScore = 55f;
@@ -23,9 +23,6 @@ public sealed class AiDecisionSystem(EventBus events) : ISimulationSystem
 
     /// <summary>Arm's reach for an arrest, in tiles.</summary>
     public const float ArrestRange = 1.6f;
-
-    /// <summary>Decision heartbeat when nothing triggers one (1s at 20 ticks/s).</summary>
-    public const uint HeartbeatTicks = 20;
 
     private static readonly QueryDescription Guards =
         new QueryDescription().WithAll<GuardTag, Position, AiState, Beliefs>();
@@ -42,7 +39,10 @@ public sealed class AiDecisionSystem(EventBus events) : ISimulationSystem
             if (!state.DecisionRequested && tick < state.NextDecisionTick)
                 return;
             state.DecisionRequested = false;
-            state.NextDecisionTick = tick + HeartbeatTicks;
+            // The idle heartbeat is LOD/load-paced (§7.10); triggered decisions (the
+            // DecisionRequested flag: sighting, sound, radio) always ran the line above.
+            state.NextDecisionTick = tick
+                + budget.DecisionHeartbeatTicks(SimulationDetail.Of(ecsWorld, guard));
 
             var guardTile = new TilePos((int)MathF.Floor(position.X), (int)MathF.Floor(position.Y), position.Floor);
 

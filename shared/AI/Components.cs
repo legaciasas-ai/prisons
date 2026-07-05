@@ -110,6 +110,23 @@ public sealed class SuspectBelief
     public bool SeenThroughDisguise { get; set; }
 }
 
+/// <summary>
+/// The simulation LOD assigned to this NPC by <c>LodSystem</c> (PLAN §7.10), plus its
+/// scheduler bookkeeping. Not persisted in saves — recomputed within half a second.
+/// </summary>
+public record struct SimulationDetail(Scheduling.SimulationLod Lod)
+{
+    /// <summary>Next tick the LOD gets re-evaluated (staggered across entities).</summary>
+    public ulong NextEvaluationTick;
+
+    /// <summary>Next discrete waypoint hop when at LOD EventOnly/Statistical.</summary>
+    public ulong NextEventTick;
+
+    /// <summary>This entity's LOD, defaulting to Full for entities without the component.</summary>
+    public static Scheduling.SimulationLod Of(Arch.Core.World ecs, Entity entity) =>
+        ecs.Has<SimulationDetail>(entity) ? ecs.Get<SimulationDetail>(entity).Lod : Scheduling.SimulationLod.Full;
+}
+
 /// <summary>A sound the guard heard and has not yet resolved (investigation stimulus, PLAN §7.5).</summary>
 public record struct SoundStimulus(TilePos Position, ulong Tick, float Radius);
 

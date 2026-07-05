@@ -5,6 +5,7 @@ using Prison.Shared.AI.Actions;
 using Prison.Shared.AI.Memory;
 using Prison.Shared.AI.Perception;
 using Prison.Shared.AI.Reasoning;
+using Prison.Shared.AI.Scheduling;
 using Prison.Shared.ECS.Components;
 using Prison.Shared.ECS.Systems;
 using Prison.Shared.Interaction;
@@ -15,10 +16,11 @@ using Prison.Shared.World;
 
 namespace Prison.Shared;
 
-/// <summary>A ready-to-run match: the simulation, its shared pathfinding queue, the local player, and the match records.</summary>
+/// <summary>A ready-to-run match: the simulation, its shared pathfinding queue, the local player, the match records, and the AI budget.</summary>
 public sealed record MatchHandle(
     Simulation Simulation, PathfindingService Pathfinding, Entity Player,
-    TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay)
+    TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay,
+    SimulationBudget Budget)
 {
     /// <summary>Persists this match's full telemetry (journal, escape record, replay) to disk.</summary>
     public void WriteTelemetry(string directory) =>
@@ -38,14 +40,20 @@ public static class MatchFactory
     /// <summary>The systems + recorders of a match, before any entity exists (used by save loading).</summary>
     public sealed record BareMatch(
         Simulation Simulation, PathfindingService Pathfinding,
-        TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay);
+        TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay,
+        SimulationBudget Budget);
 
     /// <summary>Assembles the canonical system lineup with no entities spawned.</summary>
     public static BareMatch CreateBare(
         WorldGrid world, MapDefinition map,
         ItemRegistry items, IReadOnlyList<RecipeDefinition> recipes,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        SimulationBudget? budget = null)
     {
+        // One simulation, one configurable computational budget (PLAN §12.1): profiles and
+        // the auto-tuner set these knobs; the rules are identical on every hosting tier.
+        budget ??= SimulationBudget.Balanced;
+
         var simulation = new Simulation(logger: loggerFactory?.CreateLogger<Simulation>());
         var events = simulation.Events;
         var pathfinding = new PathfindingService(new HierarchicalPathfinder(world));
@@ -61,18 +69,19 @@ public static class MatchFactory
         simulation.AddSystem(new StairTraversalSystem(world));
         simulation.AddSystem(new InteractionSystem(world, items, recipes, events));
         simulation.AddSystem(new FootstepSoundSystem(events));
-        simulation.AddSystem(new PerceptionSystem(world, events));
+        simulation.AddSystem(new LodSystem(budget));
+        simulation.AddSystem(new PerceptionSystem(world, events, budget));
         simulation.AddSystem(new HearingSystem(events));
         simulation.AddSystem(new Suspicion.SuspicionSystem(events));
         simulation.AddSystem(new RadioSystem(events));
         simulation.AddSystem(new MemoryDecaySystem());
-        simulation.AddSystem(new AiDecisionSystem(events));
-        simulation.AddSystem(new AiActionSystem(world, pathfinding, map.PlayerSpawn.Position, events));
+        simulation.AddSystem(new AiDecisionSystem(events, budget));
+        simulation.AddSystem(new AiActionSystem(world, pathfinding, map.PlayerSpawn.Position, events, budget));
         simulation.AddSystem(new NavAgentSystem());
-        simulation.AddSystem(new PathfindingSystem(pathfinding));
+        simulation.AddSystem(new PathfindingSystem(pathfinding, budget));
         simulation.AddSystem(escape);
 
-        return new BareMatch(simulation, pathfinding, telemetry, escape, replay);
+        return new BareMatch(simulation, pathfinding, telemetry, escape, replay, budget);
     }
 
     /// <param name="includePlayer">
@@ -85,13 +94,14 @@ public static class MatchFactory
         IReadOnlyList<RecipeDefinition>? recipes = null,
         ILoggerFactory? loggerFactory = null,
         bool includeMapGuards = true,
-        bool includePlayer = true)
+        bool includePlayer = true,
+        SimulationBudget? budget = null)
     {
         items ??= new ItemRegistry();
         recipes ??= [];
 
-        var bare = CreateBare(world, map, items, recipes, loggerFactory);
-        var (simulation, pathfinding, telemetry, escape, replay) = bare;
+        var bare = CreateBare(world, map, items, recipes, loggerFactory, budget);
+        var (simulation, pathfinding, telemetry, escape, replay, activeBudget) = bare;
 
         var player = includePlayer ? SpawnPrisoner(simulation, map) : default;
 
@@ -111,7 +121,7 @@ public static class MatchFactory
             simulation.World.Create(door);
         }
 
-        return new MatchHandle(simulation, pathfinding, player, telemetry, escape, replay);
+        return new MatchHandle(simulation, pathfinding, player, telemetry, escape, replay, activeBudget);
     }
 
     /// <summary>Spawns a player-controllable prisoner at the map's spawn point — the same
@@ -149,6 +159,7 @@ public static class MatchFactory
             new AiState(),
             new Beliefs(),
             new NavAgent(),
-            new PatrolRoute { Waypoints = waypoints });
+            new PatrolRoute { Waypoints = waypoints },
+            new SimulationDetail(SimulationLod.Full));
     }
 }

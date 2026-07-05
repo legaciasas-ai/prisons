@@ -245,9 +245,11 @@ public static class MatchSave
                 }));
             }
 
-            // Same composition as MatchFactory.SpawnGuard — guards carry no ThreatScore.
+            // Same composition as MatchFactory.SpawnGuard — guards carry no ThreatScore,
+            // and SimulationDetail is not persisted (the LodSystem reassigns it within 0.5s).
             actors[i] = ecs.Create(position, new GuardTag(), facing, vision, new Footsteps(),
-                state, beliefs, new NavAgent(), route);
+                state, beliefs, new NavAgent(), route,
+                new SimulationDetail(AI.Scheduling.SimulationLod.Full));
             if (chaseIndex >= 0)
                 pendingChase.Add((i, chaseIndex));
         }
@@ -261,7 +263,7 @@ public static class MatchSave
             state.HasChaseTarget = true;
         }
 
-        return new MatchHandle(simulation, bare.Pathfinding, player, bare.Telemetry, bare.Escape, bare.Replay);
+        return new MatchHandle(simulation, bare.Pathfinding, player, bare.Telemetry, bare.Escape, bare.Replay, bare.Budget);
     }
 
     private static void WriteTilePos(BinaryWriter w, TilePos pos)

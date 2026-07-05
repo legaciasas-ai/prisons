@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Prison.Server;
 using Prison.Shared;
+using Prison.Shared.AI.Scheduling;
 using Prison.Shared.Events;
 using Prison.Shared.Networking;
 using Prison.Shared.Pathfinding;
@@ -54,10 +55,22 @@ var world = map.BuildWorld(tiles);
 log.LogInformation("World '{Map}' loaded: {Floors} floor(s), {W}x{H}, {Tiles} tile types, {Stairs} stair connection(s)",
     map.Id, world.FloorCount, world.Floor(0).Width, world.Floor(0).Height, tiles.Count, world.Stairs.Count);
 
+// Performance profile → AI budget (PLAN §12.1): precision knobs only, never rules.
+// "Auto" benchmarks this host's pathfinding throughput and picks a profile (§12.3).
+var budget = config.PerformanceProfile.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+    ? AutoProfile(world, map, log)
+    : SimulationBudget.ForProfile(config.PerformanceProfile);
+log.LogInformation("AI budget profile: {Profile} (pathfinding {Pathfinding}/tick, LOD radii {Full}/{Reduced} tiles)",
+    budget.ProfileName, budget.PathfindingBudgetPerTick,
+    budget.FullDetailRadiusTiles, budget.ReducedDetailRadiusTiles);
+
 // Identical match assembly as the client (Pillar #3), just without rendering and without a
 // local player — every prisoner in this match belongs to a connected network peer.
-var match = MatchFactory.Create(world, map, items, recipes, loggerFactory, includePlayer: false);
+var match = MatchFactory.Create(world, map, items, recipes, loggerFactory,
+    includePlayer: false, budget: budget);
 using var simulation = match.Simulation;
+var tuner = new AiBudgetAutoTuner(budget, simulation.TicksPerSecond,
+    loggerFactory.CreateLogger<AiBudgetAutoTuner>());
 
 // Headless smoke check: the shared pathfinder must route across floors via the stairs.
 var smoke = match.Pathfinding.Request(map.PlayerSpawn.Position, new TilePos(20, 5, 1), priority: 100);
@@ -81,6 +94,7 @@ var clock = Stopwatch.StartNew();
 var lastElapsed = 0d;
 var lastReportTick = 0ul;
 var lastReportTime = 0d;
+var lastTuneTime = 0d;
 
 while (!cts.Token.IsCancellationRequested)
 {
@@ -92,11 +106,19 @@ while (!cts.Token.IsCancellationRequested)
 
     session.BroadcastState();
 
+    // Continuous self-adaptation (§12.3): degrade the low-priority end under load, recover when idle.
+    if (now - lastTuneTime >= 2)
+    {
+        tuner.Adjust(simulation.AverageTickSeconds);
+        lastTuneTime = now;
+    }
+
     if (now - lastReportTime >= 10)
     {
         var tps = (simulation.CurrentTick - lastReportTick) / (now - lastReportTime);
-        log.LogInformation("Tick {Tick} | {Tps:F1} ticks/s | {Entities} entities | {Players} player(s)",
-            simulation.CurrentTick, tps, simulation.World.Size, session.PlayerCount);
+        log.LogInformation("Tick {Tick} | {Tps:F1} ticks/s | {Entities} entities | {Players} player(s) | sim load {Load:P0}{Degraded}",
+            simulation.CurrentTick, tps, simulation.World.Size, session.PlayerCount,
+            tuner.LastUtilization, tuner.Degraded ? " (degraded)" : "");
         lastReportTick = simulation.CurrentTick;
         lastReportTime = now;
     }
@@ -118,3 +140,38 @@ log.LogInformation("Telemetry written to {Dir} ({Events} journal entries, {Keyfr
     sessionDir, match.Telemetry.Entries.Count, match.Replay.Keyframes.Count);
 
 Log.CloseAndFlush();
+return;
+
+// Benchmark-on-start (PLAN §12.3): measure this host's pathfinding throughput on the real
+// map and pick an initial profile — most hosts never have to tune anything manually.
+// Thresholds are initial defaults to be re-tuned with real data (PLAN §16).
+static SimulationBudget AutoProfile(WorldGrid world, MapDefinition map, Microsoft.Extensions.Logging.ILogger log)
+{
+    var pathfinder = new HierarchicalPathfinder(world);
+    var floor = world.Floor(0);
+    var rng = new Random(1234);
+    const int samples = 300;
+
+    var start = Stopwatch.GetTimestamp();
+    var solved = 0;
+    for (var i = 0; i < samples; i++)
+    {
+        var goal = new TilePos(rng.Next(1, floor.Width - 1), rng.Next(1, floor.Height - 1),
+            rng.Next(0, world.FloorCount));
+        if (pathfinder.FindPath(map.PlayerSpawn.Position, goal) is not null)
+            solved++;
+    }
+    var seconds = Stopwatch.GetElapsedTime(start).TotalSeconds;
+    var opsPerSecond = samples / Math.Max(seconds, 1e-6);
+
+    var budget = opsPerSecond switch
+    {
+        > 20_000 => SimulationBudget.Dedicated,
+        > 8_000 => SimulationBudget.HighCapacity,
+        > 2_000 => SimulationBudget.Balanced,
+        _ => SimulationBudget.Lightweight,
+    };
+    log.LogInformation("Auto-profile benchmark: {Ops:F0} pathfinds/s ({Solved}/{Samples} solvable) → {Profile}",
+        opsPerSecond, solved, samples, budget.ProfileName);
+    return budget;
+}

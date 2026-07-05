@@ -61,13 +61,26 @@ public sealed class Simulation : IDisposable
         _logger.LogDebug("System registered: {System}", system.Name);
     }
 
+    /// <summary>
+    /// Exponential moving average of the wall-clock cost of one tick — the signal the
+    /// dynamic AI budget manager reacts to (PLAN §7.10/§12.3).
+    /// </summary>
+    public double AverageTickSeconds { get; private set; }
+
     /// <summary>Runs exactly one fixed simulation step.</summary>
     public void Tick()
     {
+        var startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+
         var time = new SimTime(CurrentTick, FixedDeltaSeconds);
         foreach (var system in _systems)
             system.Update(World, in time);
         CurrentTick++;
+
+        var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds;
+        AverageTickSeconds = AverageTickSeconds == 0
+            ? elapsed
+            : AverageTickSeconds * 0.95 + elapsed * 0.05;
     }
 
     /// <summary>

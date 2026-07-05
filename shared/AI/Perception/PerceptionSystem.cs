@@ -12,7 +12,7 @@ namespace Prison.Shared.AI.Perception;
 /// computes its vision cone through the *shared* Visibility module and updates its beliefs
 /// about the prisoners it can physically see. No raycast, no line of sight ⇒ no detection.
 /// </summary>
-public sealed class PerceptionSystem(WorldGrid world, EventBus events) : ISimulationSystem
+public sealed class PerceptionSystem(WorldGrid world, EventBus events, Scheduling.SimulationBudget budget) : ISimulationSystem
 {
     private static readonly QueryDescription Guards =
         new QueryDescription().WithAll<GuardTag, Position, Facing, VisionSense, AiState, Beliefs>();
@@ -29,14 +29,6 @@ public sealed class PerceptionSystem(WorldGrid world, EventBus events) : ISimula
     /// disguises): beyond it, a convincingly dressed prisoner reads as a colleague.
     /// </summary>
     public const float DisguiseScrutinyTiles = 3f;
-
-    /// <summary>Perception interval in ticks per activity (PLAN §7.10: chasing updates far more often).</summary>
-    private static uint IntervalFor(GuardAction action) => action switch
-    {
-        GuardAction.Chase or GuardAction.Arrest => 2,
-        GuardAction.Investigate => 5,
-        _ => 10,
-    };
 
     public void Update(Arch.Core.World ecsWorld, in SimTime time)
     {
@@ -57,7 +49,16 @@ public sealed class PerceptionSystem(WorldGrid world, EventBus events) : ISimula
         {
             if (tick < state.NextPerceptionTick)
                 return;
-            var interval = IntervalFor(state.Action);
+            // LOD-scheduled rate (§7.10): the interval stretches with distance-irrelevance
+            // and system load; at EventOnly/Statistical there is nothing to look at — no
+            // prisoner shares the floor — so vision is skipped entirely.
+            var lod = SimulationDetail.Of(ecsWorld, guard);
+            if (lod >= Scheduling.SimulationLod.EventOnly)
+            {
+                state.NextPerceptionTick = tick + Scheduling.LodSystem.EvaluationIntervalTicks;
+                return;
+            }
+            var interval = budget.PerceptionIntervalTicks(state.Action, lod);
             state.NextPerceptionTick = tick + interval;
 
             var origin = new TilePos((int)MathF.Floor(position.X), (int)MathF.Floor(position.Y), position.Floor);
