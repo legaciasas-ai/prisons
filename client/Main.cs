@@ -31,7 +31,10 @@ public partial class Main : Node2D
     private Camera2D _camera = null!;
     private HashSet<TilePos> _visible = [];
     private bool _stairsKeyWasPressed;
+    private bool _heatMapKeyWasPressed;
+    private bool _showHeatMap;
     private double _arrestFlashSecondsLeft;
+    private Prison.Shared.Telemetry.EscapeRecorder _escape = null!;
 
     public override void _Ready()
     {
@@ -48,6 +51,7 @@ public partial class Main : Node2D
         var match = MatchFactory.Create(_world, map, items, recipes);
         _simulation = match.Simulation;
         _player = match.Player;
+        _escape = match.Escape;
 
         _simulation.Events.Subscribe<ArrestEvent>(evt =>
         {
@@ -85,8 +89,8 @@ public partial class Main : Node2D
         if (_arrestFlashSecondsLeft > 0)
             _arrestFlashSecondsLeft -= delta;
 
-        _label.Text = $"Prison — Phase 2: staff AI\n" +
-                      $"WASD move · Shift sprint · E stairs\n" +
+        _label.Text = $"Prison — Phase 4: telemetry\n" +
+                      $"WASD move · Shift sprint · E stairs · H heat map\n" +
                       $"Floor {position.Floor} · suspicion {threat:F0}/100 · {Engine.GetFramesPerSecond()} fps" +
                       (_arrestFlashSecondsLeft > 0 ? "\n\n>>> CAUGHT — escorted back to your cell <<<" : "");
 
@@ -104,6 +108,11 @@ public partial class Main : Node2D
         var stairsPressed = Input.IsPhysicalKeyPressed(Key.E);
         var stairsJustPressed = stairsPressed && !_stairsKeyWasPressed;
         _stairsKeyWasPressed = stairsPressed;
+
+        var heatPressed = Input.IsPhysicalKeyPressed(Key.H);
+        if (heatPressed && !_heatMapKeyWasPressed)
+            _showHeatMap = !_showHeatMap;
+        _heatMapKeyWasPressed = heatPressed;
 
         ref var input = ref _simulation.World.Get<PlayerInput>(_player);
         input.MoveX = move.X;
@@ -148,10 +157,29 @@ public partial class Main : Node2D
             }
         }
 
+        if (_showHeatMap)
+            DrawHeatMap(floorIndex);
+
         DrawGuards(floorIndex);
 
         DrawCircle(new Vector2(playerPosition.X, playerPosition.Y) * PixelsPerTile,
             PixelsPerTile * 0.32f, new Color(1f, 0.65f, 0.15f));
+    }
+
+    /// <summary>Debug overlay (Phase 4): where the prisoner has been, hottest tiles reddest.</summary>
+    private void DrawHeatMap(int floorIndex)
+    {
+        var heat = _escape.Presence;
+        if (heat.Max == 0)
+            return;
+        foreach (var (tile, count) in heat.Counts)
+        {
+            if (tile.Floor != floorIndex)
+                continue;
+            var intensity = Mathf.Sqrt(count / (float)heat.Max); // sqrt: keep low counts readable
+            DrawRect(new Rect2(tile.X * PixelsPerTile, tile.Y * PixelsPerTile, PixelsPerTile, PixelsPerTile),
+                new Color(1f, 0.1f, 0.05f, 0.15f + 0.5f * intensity));
+        }
     }
 
     /// <summary>Guards render only if the *player* can physically see their tile — same fairness both ways.</summary>
@@ -184,6 +212,9 @@ public partial class Main : Node2D
         "concrete_wall" => new Color(0.24f, 0.24f, 0.23f),
         "glass_wall" => new Color(0.62f, 0.83f, 0.88f),
         "chain_fence" => new Color(0.70f, 0.72f, 0.74f),
+        "tunnel" => new Color(0.35f, 0.26f, 0.18f),
+        "door_closed" => new Color(0.55f, 0.35f, 0.16f),
+        "door_open" => new Color(0.75f, 0.58f, 0.35f),
         _ => new Color(0.05f, 0.05f, 0.06f),
     };
 

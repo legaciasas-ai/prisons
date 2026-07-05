@@ -99,4 +99,12 @@ while (!cts.Token.IsCancellationRequested)
 }
 
 log.LogInformation("Shutdown requested; stopped at tick {Tick}", simulation.CurrentTick);
+
+// Persist the match telemetry locally for offline analysis (PLAN Phase 4). Local only:
+// nothing is shared unless a host opts in (Pillar #7) — sharing arrives with the backend.
+var sessionDir = Path.Combine("telemetry", $"session-{DateTime.UtcNow:yyyyMMdd-HHmmss}");
+match.WriteTelemetry(sessionDir);
+log.LogInformation("Telemetry written to {Dir} ({Events} journal entries, {Keyframes} replay keyframes)",
+    sessionDir, match.Telemetry.Entries.Count, match.Replay.Keyframes.Count);
+
 Log.CloseAndFlush();

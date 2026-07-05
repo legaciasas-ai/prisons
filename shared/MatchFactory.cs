@@ -15,9 +15,15 @@ using Prison.Shared.World;
 
 namespace Prison.Shared;
 
-/// <summary>A ready-to-run match: the simulation, its shared pathfinding queue, the local player, and the match record.</summary>
+/// <summary>A ready-to-run match: the simulation, its shared pathfinding queue, the local player, and the match records.</summary>
 public sealed record MatchHandle(
-    Simulation Simulation, PathfindingService Pathfinding, Entity Player, TelemetryRecorder Telemetry);
+    Simulation Simulation, PathfindingService Pathfinding, Entity Player,
+    TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay)
+{
+    /// <summary>Persists this match's full telemetry (journal, escape record, replay) to disk.</summary>
+    public void WriteTelemetry(string directory) =>
+        TelemetrySink.WriteSession(directory, Telemetry, Escape, Replay);
+}
 
 /// <summary>
 /// Assembles a match the *same way everywhere* (Pillar #3): the Godot client, the headless
@@ -43,9 +49,13 @@ public static class MatchFactory
         var events = simulation.Events;
         var pathfinding = new PathfindingService(new HierarchicalPathfinder(world));
         var telemetry = new TelemetryRecorder(events);
+        var replay = new ReplayRecorder(events);
+        var escape = new EscapeRecorder();
 
-        // Canonical system order: player intent → interactions → movement sounds → senses →
-        // beliefs → decisions → actions → navigation → shared pathfinding budget.
+        // Canonical system order: replay tick-stamp first, then player intent → interactions →
+        // movement sounds → senses → beliefs → decisions → actions → navigation → shared
+        // pathfinding budget, and the escape recorder sampling final positions last.
+        simulation.AddSystem(replay);
         simulation.AddSystem(new PlayerMovementSystem(world));
         simulation.AddSystem(new StairTraversalSystem(world));
         simulation.AddSystem(new InteractionSystem(world, items, recipes, events));
@@ -59,6 +69,7 @@ public static class MatchFactory
         simulation.AddSystem(new AiActionSystem(world, pathfinding, map.PlayerSpawn.Position, events));
         simulation.AddSystem(new NavAgentSystem());
         simulation.AddSystem(new PathfindingSystem(pathfinding));
+        simulation.AddSystem(escape);
 
         var spawn = map.PlayerSpawn.Position;
         var player = simulation.World.Create(
@@ -89,7 +100,7 @@ public static class MatchFactory
             simulation.World.Create(door);
         }
 
-        return new MatchHandle(simulation, pathfinding, player, telemetry);
+        return new MatchHandle(simulation, pathfinding, player, telemetry, escape, replay);
     }
 
     public static Entity SpawnGuard(Simulation simulation, MapDefinition.MapGuard guardSpawn)
