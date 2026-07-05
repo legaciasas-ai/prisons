@@ -5,6 +5,8 @@
 name = "Prison Dev Server"
 # Fixed simulation tick rate (ticks per second). PLAN §7.11 baseline: 20.
 tick_rate = 20
+# TCP port the network listener binds (PLAN §7.11; transport choice: ADR 0002).
+port = 30500
 
 [logging]
 # Serilog minimum level: Verbose | Debug | Information | Warning | Error | Fatal

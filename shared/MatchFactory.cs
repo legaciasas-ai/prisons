@@ -75,12 +75,17 @@ public static class MatchFactory
         return new BareMatch(simulation, pathfinding, telemetry, escape, replay);
     }
 
+    /// <param name="includePlayer">
+    /// False for a network host: peers spawn their own prisoners via <see cref="SpawnPrisoner"/>
+    /// as they connect, and <see cref="MatchHandle.Player"/> stays default.
+    /// </param>
     public static MatchHandle Create(
         WorldGrid world, MapDefinition map,
         ItemRegistry? items = null,
         IReadOnlyList<RecipeDefinition>? recipes = null,
         ILoggerFactory? loggerFactory = null,
-        bool includeMapGuards = true)
+        bool includeMapGuards = true,
+        bool includePlayer = true)
     {
         items ??= new ItemRegistry();
         recipes ??= [];
@@ -88,18 +93,7 @@ public static class MatchFactory
         var bare = CreateBare(world, map, items, recipes, loggerFactory);
         var (simulation, pathfinding, telemetry, escape, replay) = bare;
 
-        var spawn = map.PlayerSpawn.Position;
-        var player = simulation.World.Create(
-            new Position(spawn.X + 0.5f, spawn.Y + 0.5f, spawn.Floor),
-            new PlayerInput(),
-            new MoveSpeed(PlayerWalkSpeed),
-            new Facing(0f),
-            new Footsteps(),
-            new PrisonerTag(),
-            new ThreatScore(InitialPrisonerThreat),
-            new Inventory(),
-            new Interactor(),
-            new Appearance(null));
+        var player = includePlayer ? SpawnPrisoner(simulation, map) : default;
 
         if (includeMapGuards)
         {
@@ -118,6 +112,24 @@ public static class MatchFactory
         }
 
         return new MatchHandle(simulation, pathfinding, player, telemetry, escape, replay);
+    }
+
+    /// <summary>Spawns a player-controllable prisoner at the map's spawn point — the same
+    /// composition for the local single-player and for every connected network peer.</summary>
+    public static Entity SpawnPrisoner(Simulation simulation, MapDefinition map)
+    {
+        var spawn = map.PlayerSpawn.Position;
+        return simulation.World.Create(
+            new Position(spawn.X + 0.5f, spawn.Y + 0.5f, spawn.Floor),
+            new PlayerInput(),
+            new MoveSpeed(PlayerWalkSpeed),
+            new Facing(0f),
+            new Footsteps(),
+            new PrisonerTag(),
+            new ThreatScore(InitialPrisonerThreat),
+            new Inventory(),
+            new Interactor(),
+            new Appearance(null));
     }
 
     public static Entity SpawnGuard(Simulation simulation, MapDefinition.MapGuard guardSpawn)

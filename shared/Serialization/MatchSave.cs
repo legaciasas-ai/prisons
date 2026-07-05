@@ -45,26 +45,9 @@ public static class MatchSave
         w.Write(mapId);
         w.Write(match.Simulation.CurrentTick);
 
-        // Tile name table: numeric layer ids resolve through names on load.
-        w.Write(world.Tiles.Count);
-        for (ushort id = 0; id < world.Tiles.Count; id++)
-            w.Write(world.Tiles.Get(id).Id);
-
-        // Layer data (includes every runtime mutation: tunnels, cut fences, door tiles).
-        w.Write(world.FloorCount);
-        for (var f = 0; f < world.FloorCount; f++)
-        {
-            var floor = world.Floor(f);
-            w.Write(floor.Width);
-            w.Write(floor.Height);
-            w.Write(floor.AmbientLight);
-            for (var y = 0; y < floor.Height; y++)
-                for (var x = 0; x < floor.Width; x++)
-                {
-                    w.Write(floor.GetFloorTile(x, y));
-                    w.Write(floor.GetWallTile(x, y));
-                }
-        }
+        // Tile name table + layer data (includes every runtime mutation: tunnels, cut
+        // fences, door tiles) — same snapshot block the network Welcome message uses.
+        WorldSnapshot.Write(world, w);
 
         var ecs = match.Simulation.World;
 
@@ -165,7 +148,6 @@ public static class MatchSave
         ItemRegistry itemRegistry, IReadOnlyList<RecipeDefinition> recipes,
         ILoggerFactory? loggerFactory = null)
     {
-        var tiles = world.Tiles;
         using var r = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         if (Encoding.ASCII.GetString(r.ReadBytes(4)) != Magic)
             throw new InvalidDataException("Not a prison save file");
@@ -178,29 +160,8 @@ public static class MatchSave
             throw new InvalidDataException($"Save is for map '{mapId}', not '{map.Id}'");
         var tick = r.ReadUInt64();
 
-        // Tile name table → current registry ids (renamed/removed tiles fail loudly).
-        var tableSize = r.ReadInt32();
-        var tileIdOf = new ushort[tableSize];
-        for (var i = 0; i < tableSize; i++)
-            tileIdOf[i] = tiles.IdOf(r.ReadString());
-
         // The caller rebuilt the world from the map (stairs/zones/lights); restore mutated layers.
-        var floorCount = r.ReadInt32();
-        if (floorCount != world.FloorCount)
-            throw new InvalidDataException("Save floor count does not match the map");
-        for (var f = 0; f < floorCount; f++)
-        {
-            var width = r.ReadInt32();
-            var height = r.ReadInt32();
-            _ = r.ReadSingle(); // ambient light: authoritative from the map
-            var floor = world.Floor(f);
-            for (var y = 0; y < height; y++)
-                for (var x = 0; x < width; x++)
-                {
-                    floor.SetFloorTile(x, y, tileIdOf[r.ReadUInt16()]);
-                    floor.SetWallTile(x, y, tileIdOf[r.ReadUInt16()]);
-                }
-        }
+        WorldSnapshot.Apply(world, r);
 
         var bare = MatchFactory.CreateBare(world, map, itemRegistry, recipes, loggerFactory);
         var simulation = bare.Simulation;

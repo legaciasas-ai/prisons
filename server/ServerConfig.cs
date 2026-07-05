@@ -7,8 +7,11 @@ namespace Prison.Server;
 /// <summary>Server configuration loaded from a TOML file (PLAN §5).</summary>
 public sealed class ServerConfig
 {
+    public const int DefaultPort = 30500;
+
     public string Name { get; init; } = "Prison Server";
     public int TickRate { get; init; } = Shared.Simulation.DefaultTicksPerSecond;
+    public int Port { get; init; } = DefaultPort;
     public LogEventLevel LogLevel { get; init; } = LogEventLevel.Information;
     public string PerformanceProfile { get; init; } = "Balanced";
 
@@ -24,6 +27,7 @@ public sealed class ServerConfig
         {
             Name = GetString(server, "name") ?? "Prison Server",
             TickRate = (int)(GetLong(server, "tick_rate") ?? Shared.Simulation.DefaultTicksPerSecond),
+            Port = (int)(GetLong(server, "port") ?? DefaultPort),
             LogLevel = Enum.TryParse<LogEventLevel>(GetString(logging, "level"), ignoreCase: true, out var level)
                 ? level
                 : LogEventLevel.Information,
