@@ -1,10 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
-using Prison.Shared;
-using Prison.Shared.AI;
-using Prison.Shared.ECS.Components;
-using Prison.Shared.Events;
 using Prison.Shared.Utilities;
 using Prison.Shared.Visibility;
 using Prison.Shared.World;
@@ -12,10 +9,12 @@ using Prison.Shared.World;
 namespace Prison.Client;
 
 /// <summary>
-/// Local single-player bootstrap (PLAN §4.1): embeds the Core Simulation directly and renders it.
-/// Phase 2 scope: walk (WASD) / sprint (Shift) / stairs (E) through the test prison while
-/// guards patrol, hear, investigate, chase and arrest — all through the shared, physically
-/// grounded Staff AI. This class only renders and forwards input (Pillar #5).
+/// The Godot presentation layer: renders an <see cref="IMatchClient"/> and forwards input
+/// to it — nothing else (Pillar #5). The same rendering code serves the embedded local
+/// simulation, an online match mirrored from an authoritative server, and a player-hosted
+/// listen-server. Environment variables select the mode (a proper menu comes with real UI
+/// work): <c>PRISON_SERVER=host[:port]</c> to join a server, <c>PRISON_HOST=[port]</c> to
+/// host while playing, <c>PRISON_PLAYER_NAME</c> optional; nothing set = single-player.
 /// </summary>
 public partial class Main : Node2D
 {
@@ -23,10 +22,8 @@ public partial class Main : Node2D
     private const float PlayerMaxSight = 12f;
     private const float PlayerDarkSight = 3f;
 
-    private Simulation _simulation = null!;
-    private WorldGrid _world = null!;
-    private FogOfWarMap _fog = null!;
-    private Arch.Core.Entity _player;
+    private IMatchClient _client = null!;
+    private FogOfWarMap? _fog;
     private Label _label = null!;
     private Camera2D _camera = null!;
     private HashSet<TilePos> _visible = [];
@@ -34,34 +31,43 @@ public partial class Main : Node2D
     private bool _heatMapKeyWasPressed;
     private bool _showHeatMap;
     private double _arrestFlashSecondsLeft;
-    private Prison.Shared.Telemetry.EscapeRecorder _escape = null!;
 
     public override void _Ready()
     {
         _label = GetNode<Label>("Hud/StatusLabel");
 
         var contentRoot = ResolveContentRoot();
-        var tiles = TileRegistry.LoadFromDirectory(Path.Combine(contentRoot, "tiles"));
-        var items = Prison.Shared.Items.ItemRegistry.LoadFromDirectory(Path.Combine(contentRoot, "items"));
-        var recipes = Prison.Shared.Items.RecipeDefinition.LoadFromDirectory(Path.Combine(contentRoot, "recipes"));
-        var map = MapDefinition.Load(Path.Combine(contentRoot, "maps", "test_prison.json"));
-        _world = map.BuildWorld(tiles);
-        _fog = new FogOfWarMap(_world);
-
-        var match = MatchFactory.Create(_world, map, items, recipes);
-        _simulation = match.Simulation;
-        _player = match.Player;
-        _escape = match.Escape;
-
-        _simulation.Events.Subscribe<ArrestEvent>(evt =>
-        {
-            if (evt.Prisoner == _player)
-                _arrestFlashSecondsLeft = 3.0;
-        });
+        _client = CreateClient(contentRoot);
 
         _camera = new Camera2D { Zoom = new Vector2(1.6f, 1.6f) };
         AddChild(_camera);
         _camera.MakeCurrent();
+    }
+
+    /// <summary>Local single-player unless PRISON_SERVER (join) or PRISON_HOST (host) is set.</summary>
+    private static IMatchClient CreateClient(string contentRoot)
+    {
+        var name = OS.GetEnvironment("PRISON_PLAYER_NAME");
+        if (string.IsNullOrWhiteSpace(name))
+            name = $"prisoner-{Random.Shared.Next(1000, 9999)}";
+
+        var host = OS.GetEnvironment("PRISON_HOST");
+        if (!string.IsNullOrWhiteSpace(host))
+            return new HostMatchClient(contentRoot,
+                int.TryParse(host, out var hostPort) ? hostPort : 30500, name);
+
+        var server = OS.GetEnvironment("PRISON_SERVER");
+        if (string.IsNullOrWhiteSpace(server))
+            return new LocalMatchClient(contentRoot);
+
+        var parts = server.Split(':', 2);
+        var port = parts.Length == 2 && int.TryParse(parts[1], out var p) ? p : 30500;
+        var tiles = TileRegistry.LoadFromDirectory(Path.Combine(contentRoot, "tiles"));
+        return new RemoteMatchClient(parts[0], port, name, mapId =>
+        {
+            var mapPath = Path.Combine(contentRoot, "maps", mapId + ".json");
+            return File.Exists(mapPath) ? MapDefinition.Load(mapPath).BuildWorld(tiles) : null;
+        });
     }
 
     /// <summary>content/ lives beside the Godot project (repo root), outside res://.</summary>
@@ -74,24 +80,40 @@ public partial class Main : Node2D
 
     public override void _Process(double delta)
     {
-        ForwardInput();
-        _simulation.Advance(delta);
+        _client.Update(delta);
 
-        var position = _simulation.World.Get<Position>(_player);
+        if (_client.Error is { } error)
+        {
+            _label.Text = $"Prison — {_client.ModeLabel}\n\n>>> {error} <<<";
+            return;
+        }
+
+        if (!_client.Ready)
+        {
+            _label.Text = $"Prison — {_client.ModeLabel}\n\nConnexion au serveur…";
+            return;
+        }
+
+        ForwardInput();
+        _fog ??= new FogOfWarMap(_client.World);
+
+        var position = _client.PlayerPosition;
         var origin = new TilePos((int)Mathf.Floor(position.X), (int)Mathf.Floor(position.Y), position.Floor);
-        _visible = FieldOfView.Compute(_world, origin,
+        _visible = FieldOfView.Compute(_client.World, origin,
             VisionParameters.Omnidirectional(PlayerMaxSight, PlayerDarkSight));
         _fog.Update(_visible);
 
         _camera.Position = new Vector2(position.X, position.Y) * PixelsPerTile;
 
-        var threat = _simulation.World.Get<ThreatScore>(_player).Threat;
+        if (_client.ConsumeArrestSignal())
+            _arrestFlashSecondsLeft = 3.0;
         if (_arrestFlashSecondsLeft > 0)
             _arrestFlashSecondsLeft -= delta;
 
-        _label.Text = $"Prison — Phase 4: telemetry\n" +
-                      $"WASD move · Shift sprint · E stairs · H heat map\n" +
-                      $"Floor {position.Floor} · suspicion {threat:F0}/100 · {Engine.GetFramesPerSecond()} fps" +
+        _label.Text = $"Prison — {_client.ModeLabel}\n" +
+                      $"WASD move · Shift sprint · E stairs" +
+                      (_client.PresenceHeat is not null ? " · H heat map\n" : "\n") +
+                      $"Floor {position.Floor} · suspicion {_client.Threat:F0}/100 · {Engine.GetFramesPerSecond()} fps" +
                       (_arrestFlashSecondsLeft > 0 ? "\n\n>>> CAUGHT — escorted back to your cell <<<" : "");
 
         QueueRedraw();
@@ -114,18 +136,18 @@ public partial class Main : Node2D
             _showHeatMap = !_showHeatMap;
         _heatMapKeyWasPressed = heatPressed;
 
-        ref var input = ref _simulation.World.Get<PlayerInput>(_player);
-        input.MoveX = move.X;
-        input.MoveY = move.Y;
-        input.Running = Input.IsPhysicalKeyPressed(Key.Shift);
-        input.UseStairs |= stairsJustPressed; // sticky until a tick consumes it
+        _client.ApplyInput(move.X, move.Y, Input.IsPhysicalKeyPressed(Key.Shift), stairsJustPressed);
     }
 
     public override void _Draw()
     {
-        var playerPosition = _simulation.World.Get<Position>(_player);
+        if (!_client.Ready || _fog is null)
+            return;
+
+        var playerPosition = _client.PlayerPosition;
         var floorIndex = playerPosition.Floor;
-        var floor = _world.Floor(floorIndex);
+        var world = _client.World;
+        var floor = world.Floor(floorIndex);
 
         for (var y = 0; y < floor.Height; y++)
         {
@@ -141,7 +163,7 @@ public partial class Main : Node2D
                 if (tileId == TileRegistry.EmptyId)
                     continue;
 
-                var color = ColorFor(_world.Tiles.Get(tileId).Id);
+                var color = ColorFor(world.Tiles.Get(tileId).Id);
                 if (fog == FogState.Visible)
                 {
                     var light = 0.45f + 0.55f * floor.GetLight(x, y);
@@ -160,7 +182,7 @@ public partial class Main : Node2D
         if (_showHeatMap)
             DrawHeatMap(floorIndex);
 
-        DrawGuards(floorIndex);
+        DrawOtherActors(floorIndex);
 
         DrawCircle(new Vector2(playerPosition.X, playerPosition.Y) * PixelsPerTile,
             PixelsPerTile * 0.32f, new Color(1f, 0.65f, 0.15f));
@@ -169,8 +191,7 @@ public partial class Main : Node2D
     /// <summary>Debug overlay (Phase 4): where the prisoner has been, hottest tiles reddest.</summary>
     private void DrawHeatMap(int floorIndex)
     {
-        var heat = _escape.Presence;
-        if (heat.Max == 0)
+        if (_client.PresenceHeat is not { Max: > 0 } heat)
             return;
         foreach (var (tile, count) in heat.Counts)
         {
@@ -182,24 +203,26 @@ public partial class Main : Node2D
         }
     }
 
-    /// <summary>Guards render only if the *player* can physically see their tile — same fairness both ways.</summary>
-    private void DrawGuards(int floorIndex)
+    /// <summary>Actors render only if the *player* can physically see their tile — same fairness both ways.</summary>
+    private void DrawOtherActors(int floorIndex)
     {
-        var query = new Arch.Core.QueryDescription().WithAll<GuardTag, Position, Facing>();
-        _simulation.World.Query(in query, (ref Position position, ref Facing facing) =>
+        foreach (var actor in _client.OtherActors)
         {
-            if (position.Floor != floorIndex)
-                return;
-            var tile = new TilePos((int)Mathf.Floor(position.X), (int)Mathf.Floor(position.Y), position.Floor);
+            if (actor.Floor != floorIndex)
+                continue;
+            var tile = new TilePos((int)Mathf.Floor(actor.X), (int)Mathf.Floor(actor.Y), actor.Floor);
             if (!_visible.Contains(tile))
-                return;
+                continue;
 
-            var center = new Vector2(position.X, position.Y) * PixelsPerTile;
-            DrawCircle(center, PixelsPerTile * 0.32f, new Color(0.25f, 0.45f, 0.95f));
+            var center = new Vector2(actor.X, actor.Y) * PixelsPerTile;
+            var color = actor.IsGuard
+                ? new Color(0.25f, 0.45f, 0.95f)   // guards: blue
+                : new Color(0.95f, 0.45f, 0.25f);  // fellow prisoners: red-orange
+            DrawCircle(center, PixelsPerTile * 0.32f, color);
             // A short heading line so the vision-cone direction is readable.
-            var dir = new Vector2(Mathf.Cos(facing.Radians), Mathf.Sin(facing.Radians));
+            var dir = new Vector2(Mathf.Cos(actor.FacingRadians), Mathf.Sin(actor.FacingRadians));
             DrawLine(center, center + dir * PixelsPerTile * 0.6f, Colors.White, 2f);
-        });
+        }
     }
 
     private static Color ColorFor(string tileId) => tileId switch
@@ -230,6 +253,6 @@ public partial class Main : Node2D
 
     public override void _ExitTree()
     {
-        _simulation.Dispose();
+        _client.Dispose();
     }
 }

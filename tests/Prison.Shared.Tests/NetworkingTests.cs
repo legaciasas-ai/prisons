@@ -267,6 +267,43 @@ public class NetworkingTests(TestContent content)
         Assert.Equal(1, bob.Actors.Values.Count(a => !a.IsGuard));
     }
 
+    // ---------- composite transport (listen-server) ----------
+
+    [Fact]
+    public void CompositeTransport_MergesLoopbackAndSecondTransport()
+    {
+        // The listen-server layout: the host plays over loopback while a friend joins
+        // through another transport — one uniform peer list, no host-only code path.
+        var world = content.BuildWorld();
+        var match = MatchFactory.Create(world, content.Map, content.Items, content.Recipes,
+            includeMapGuards: false, includePlayer: false);
+        var hostLoopback = new LoopbackTransport();
+        var friendLoopback = new LoopbackTransport();
+        var composite = new CompositeServerTransport(hostLoopback, friendLoopback);
+        var server = new ServerSession(composite, match, world, content.Map);
+        var host = new Host(server, world, hostLoopback);
+
+        Func<string, WorldGrid?> resolver = mapId => mapId == content.Map.Id ? content.BuildWorld() : null;
+        var hostPlayer = new ClientSession(hostLoopback.CreateClient(), "host", resolver);
+        var friendTransport = friendLoopback.CreateClient();
+        var friend = new ClientSession(friendTransport, "friend", resolver);
+
+        PumpFrame(host, hostPlayer, friend);
+        Assert.True(hostPlayer.InGame && friend.InGame);
+        Assert.Equal(2, server.PlayerCount);
+        Assert.NotEqual(hostPlayer.MyNetId, friend.MyNetId);
+
+        PumpFrame(host, hostPlayer, friend);
+        Assert.Equal(2, hostPlayer.Actors.Values.Count(a => !a.IsGuard));
+        Assert.Equal(2, friend.Actors.Values.Count(a => !a.IsGuard));
+
+        // The friend leaving must not disturb the host's peer.
+        friendTransport.Disconnect();
+        PumpFrame(host, hostPlayer);
+        Assert.Equal(1, server.PlayerCount);
+        Assert.True(hostPlayer.InGame);
+    }
+
     // ---------- real TCP transport ----------
 
     [Fact]
