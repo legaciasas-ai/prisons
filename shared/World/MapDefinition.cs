@@ -25,6 +25,10 @@ public sealed record MapDefinition
 
     public List<MapGuard> Guards { get; init; } = [];
 
+    public List<MapItem> Items { get; init; } = [];
+
+    public List<MapDoor> Doors { get; init; } = [];
+
     public MapSpawn PlayerSpawn { get; init; } = new();
 
     public sealed record LegendEntry
@@ -78,6 +82,28 @@ public sealed record MapDefinition
 
         /// <summary>Patrol waypoints as [x, y] pairs on the guard's floor.</summary>
         public List<int[]> Patrol { get; init; } = [];
+
+        [JsonIgnore]
+        public TilePos Position => new(X, Y, Floor);
+    }
+
+    public sealed record MapItem
+    {
+        public required string Id { get; init; }
+        public int Floor { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
+
+        [JsonIgnore]
+        public TilePos Position => new(X, Y, Floor);
+    }
+
+    public sealed record MapDoor
+    {
+        public int Floor { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
+        public bool Locked { get; init; }
 
         [JsonIgnore]
         public TilePos Position => new(X, Y, Floor);

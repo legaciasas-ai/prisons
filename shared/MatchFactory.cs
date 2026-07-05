@@ -7,13 +7,17 @@ using Prison.Shared.AI.Perception;
 using Prison.Shared.AI.Reasoning;
 using Prison.Shared.ECS.Components;
 using Prison.Shared.ECS.Systems;
+using Prison.Shared.Interaction;
+using Prison.Shared.Items;
 using Prison.Shared.Pathfinding;
+using Prison.Shared.Telemetry;
 using Prison.Shared.World;
 
 namespace Prison.Shared;
 
-/// <summary>A ready-to-run match: the simulation, its shared pathfinding queue, and the local player.</summary>
-public sealed record MatchHandle(Simulation Simulation, PathfindingService Pathfinding, Entity Player);
+/// <summary>A ready-to-run match: the simulation, its shared pathfinding queue, the local player, and the match record.</summary>
+public sealed record MatchHandle(
+    Simulation Simulation, PathfindingService Pathfinding, Entity Player, TelemetryRecorder Telemetry);
 
 /// <summary>
 /// Assembles a match the *same way everywhere* (Pillar #3): the Godot client, the headless
@@ -27,17 +31,24 @@ public static class MatchFactory
 
     public static MatchHandle Create(
         WorldGrid world, MapDefinition map,
+        ItemRegistry? items = null,
+        IReadOnlyList<RecipeDefinition>? recipes = null,
         ILoggerFactory? loggerFactory = null,
         bool includeMapGuards = true)
     {
+        items ??= new ItemRegistry();
+        recipes ??= [];
+
         var simulation = new Simulation(logger: loggerFactory?.CreateLogger<Simulation>());
         var events = simulation.Events;
         var pathfinding = new PathfindingService(new HierarchicalPathfinder(world));
+        var telemetry = new TelemetryRecorder(events);
 
-        // Canonical system order: player intent → movement sounds → senses → beliefs →
-        // decisions → actions → navigation → shared pathfinding budget.
+        // Canonical system order: player intent → interactions → movement sounds → senses →
+        // beliefs → decisions → actions → navigation → shared pathfinding budget.
         simulation.AddSystem(new PlayerMovementSystem(world));
         simulation.AddSystem(new StairTraversalSystem(world));
+        simulation.AddSystem(new InteractionSystem(world, items, recipes, events));
         simulation.AddSystem(new FootstepSoundSystem(events));
         simulation.AddSystem(new PerceptionSystem(world, events));
         simulation.AddSystem(new HearingSystem(events));
@@ -57,7 +68,10 @@ public static class MatchFactory
             new Facing(0f),
             new Footsteps(),
             new PrisonerTag(),
-            new ThreatScore(InitialPrisonerThreat));
+            new ThreatScore(InitialPrisonerThreat),
+            new Inventory(),
+            new Interactor(),
+            new Appearance(null));
 
         if (includeMapGuards)
         {
@@ -65,7 +79,17 @@ public static class MatchFactory
                 SpawnGuard(simulation, guardSpawn);
         }
 
-        return new MatchHandle(simulation, pathfinding, player);
+        foreach (var mapItem in map.Items)
+            simulation.World.Create(new WorldItem(mapItem.Id, mapItem.Position));
+
+        foreach (var mapDoor in map.Doors)
+        {
+            var door = new Door { Tile = mapDoor.Position, Locked = mapDoor.Locked };
+            door.ApplyToWorld(world); // doors start closed: written into the wall layer up front
+            simulation.World.Create(door);
+        }
+
+        return new MatchHandle(simulation, pathfinding, player, telemetry);
     }
 
     public static Entity SpawnGuard(Simulation simulation, MapDefinition.MapGuard guardSpawn)

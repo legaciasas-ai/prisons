@@ -17,14 +17,19 @@ public sealed class SuspicionSystem : ISimulationSystem
     public const float DecayPerSecond = 2f;
     public const float MaxThreat = 100f;
 
+    /// <summary>Being caught in a disguise is damning on its own (PLAN §7.7 observed signal).</summary>
+    public const float DisguiseCompromisedBoost = 55f;
+
     private static readonly QueryDescription Prisoners =
         new QueryDescription().WithAll<PrisonerTag, ThreatScore>();
 
     private readonly List<PrisonerObservedEvent> _observations = [];
+    private readonly List<DisguiseCompromisedEvent> _compromises = [];
 
     public SuspicionSystem(EventBus events)
     {
         events.Subscribe<PrisonerObservedEvent>(_observations.Add);
+        events.Subscribe<DisguiseCompromisedEvent>(_compromises.Add);
     }
 
     public string Name => "Suspicion";
@@ -47,6 +52,16 @@ public sealed class SuspicionSystem : ISimulationSystem
         }
 
         _observations.Clear();
+
+        foreach (var compromise in _compromises)
+        {
+            if (!ecsWorld.IsAlive(compromise.Prisoner) || !ecsWorld.Has<ThreatScore>(compromise.Prisoner))
+                continue;
+            ref var score = ref ecsWorld.Get<ThreatScore>(compromise.Prisoner);
+            score.Threat = MathF.Min(MaxThreat, score.Threat + DisguiseCompromisedBoost);
+        }
+
+        _compromises.Clear();
 
         // Suspicion cools off slowly with time (never below zero).
         var dt = time.DeltaSeconds;

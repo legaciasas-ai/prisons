@@ -105,6 +105,9 @@ public sealed class SuspectBelief
     public ulong LastSeenTick { get; set; }
     public float Confidence { get; set; }
     public bool CurrentlyVisible { get; set; }
+
+    /// <summary>This guard got close enough to recognize the suspect despite a disguise (fires once).</summary>
+    public bool SeenThroughDisguise { get; set; }
 }
 
 /// <summary>A sound the guard heard and has not yet resolved (investigation stimulus, PLAN §7.5).</summary>

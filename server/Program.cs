@@ -46,13 +46,15 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) => cts.Cancel();
 // Load the data-driven world (Pillar #4): same content files as the client.
 var contentRoot = ContentPaths.Resolve();
 var tiles = TileRegistry.LoadFromDirectory(Path.Combine(contentRoot, "tiles"));
+var items = Prison.Shared.Items.ItemRegistry.LoadFromDirectory(Path.Combine(contentRoot, "items"));
+var recipes = Prison.Shared.Items.RecipeDefinition.LoadFromDirectory(Path.Combine(contentRoot, "recipes"));
 var map = MapDefinition.Load(Path.Combine(contentRoot, "maps", "test_prison.json"));
 var world = map.BuildWorld(tiles);
 log.LogInformation("World '{Map}' loaded: {Floors} floor(s), {W}x{H}, {Tiles} tile types, {Stairs} stair connection(s)",
     map.Id, world.FloorCount, world.Floor(0).Width, world.Floor(0).Height, tiles.Count, world.Stairs.Count);
 
 // Identical match assembly as the client (Pillar #3), just without rendering.
-var match = MatchFactory.Create(world, map, loggerFactory);
+var match = MatchFactory.Create(world, map, items, recipes, loggerFactory);
 using var simulation = match.Simulation;
 
 // Headless smoke check: the shared pathfinder must route across floors via the stairs.

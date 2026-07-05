@@ -1,0 +1,6 @@
+{
+  "id": "craft_shovel",
+  "output": "shovel",
+  "ingredients": ["stick", "scrap_metal"],
+  "craft_seconds": 3
+}

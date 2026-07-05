@@ -1,3 +1,4 @@
+using Prison.Shared.Items;
 using Prison.Shared.Utilities;
 using Prison.Shared.World;
 using Xunit;
@@ -11,10 +12,16 @@ public sealed class TestContent
     {
         var root = ContentPaths.Resolve();
         Tiles = TileRegistry.LoadFromDirectory(Path.Combine(root, "tiles"));
+        Items = ItemRegistry.LoadFromDirectory(Path.Combine(root, "items"));
+        Recipes = RecipeDefinition.LoadFromDirectory(Path.Combine(root, "recipes"));
         Map = MapDefinition.Load(Path.Combine(root, "maps", "test_prison.json"));
     }
 
     public TileRegistry Tiles { get; }
+
+    public ItemRegistry Items { get; }
+
+    public IReadOnlyList<RecipeDefinition> Recipes { get; }
 
     public MapDefinition Map { get; }
 

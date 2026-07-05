@@ -20,9 +20,15 @@ public sealed class PerceptionSystem(WorldGrid world, EventBus events) : ISimula
     private static readonly QueryDescription Prisoners =
         new QueryDescription().WithAll<PrisonerTag, Position, Footsteps>();
 
-    private readonly List<(Entity Entity, TilePos Tile, float Speed)> _prisoners = [];
+    private readonly List<(Entity Entity, TilePos Tile, float Speed, bool Disguised)> _prisoners = [];
 
     public string Name => "Perception";
+
+    /// <summary>
+    /// Within this distance a guard recognizes a face regardless of uniform (PLAN §7.8
+    /// disguises): beyond it, a convincingly dressed prisoner reads as a colleague.
+    /// </summary>
+    public const float DisguiseScrutinyTiles = 3f;
 
     /// <summary>Perception interval in ticks per activity (PLAN §7.10: chasing updates far more often).</summary>
     private static uint IntervalFor(GuardAction action) => action switch
@@ -38,7 +44,9 @@ public sealed class PerceptionSystem(WorldGrid world, EventBus events) : ISimula
         ecsWorld.Query(in Prisoners, (Entity entity, ref Position position, ref Footsteps footsteps) =>
         {
             var tile = new TilePos((int)MathF.Floor(position.X), (int)MathF.Floor(position.Y), position.Floor);
-            _prisoners.Add((entity, tile, footsteps.ObservableSpeed));
+            var disguised = ecsWorld.Has<Items.Appearance>(entity)
+                && ecsWorld.Get<Items.Appearance>(entity).DisguiseRole is not null;
+            _prisoners.Add((entity, tile, footsteps.ObservableSpeed, disguised));
         });
 
         var tick = time.Tick;
@@ -56,9 +64,18 @@ public sealed class PerceptionSystem(WorldGrid world, EventBus events) : ISimula
             var vision = VisionParameters.Cone(sense.MaxDistance, sense.DarkDistance, facing.Radians, sense.FovDegrees);
             var visibleTiles = FieldOfView.Compute(world, origin, vision);
 
-            foreach (var (prisoner, tile, speed) in _prisoners)
+            foreach (var (prisoner, tile, speed, disguised) in _prisoners)
             {
                 var visible = tile.Floor == origin.Floor && visibleTiles.Contains(tile);
+
+                // A disguise defeats identification at a distance, but not a close-up look —
+                // resolved from the same physical sighting, never from hidden state (§7.8).
+                if (visible && disguised
+                    && TilePos.EuclideanDistance(origin, tile) > DisguiseScrutinyTiles)
+                {
+                    visible = false;
+                }
+
                 if (visible)
                 {
                     var running = speed >= Footsteps.RunSpeedThreshold;
@@ -66,6 +83,12 @@ public sealed class PerceptionSystem(WorldGrid world, EventBus events) : ISimula
 
                     if (!beliefs.Suspects.TryGetValue(prisoner, out var belief))
                         beliefs.Suspects[prisoner] = belief = new SuspectBelief();
+
+                    if (disguised && !belief.SeenThroughDisguise)
+                    {
+                        belief.SeenThroughDisguise = true;
+                        events.Publish(new DisguiseCompromisedEvent(tick, guard, prisoner, tile));
+                    }
 
                     var moved = belief.LastKnown != tile;
                     belief.LastKnown = tile;

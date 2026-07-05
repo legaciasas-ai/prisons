@@ -135,6 +135,10 @@ public sealed class AiActionSystem(
         if (ecsWorld.Has<Footsteps>(prisoner))
             ecsWorld.Set(prisoner, new Footsteps());
 
+        // Guards strip any disguise on arrest (contraband confiscation itself is a later phase).
+        if (ecsWorld.Has<Items.Appearance>(prisoner))
+            ecsWorld.Set(prisoner, new Items.Appearance(null));
+
         if (ecsWorld.Has<ThreatScore>(prisoner))
         {
             ref var threat = ref ecsWorld.Get<ThreatScore>(prisoner);

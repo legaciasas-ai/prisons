@@ -12,6 +12,8 @@ public enum SoundKind
     MetalCutting,
     Digging,
     Explosion,
+    /// <summary>A thrown object landing — the classic diversion.</summary>
+    Impact,
 }
 
 /// <summary>
@@ -36,3 +38,29 @@ public readonly record struct RadioBroadcastEvent(ulong Tick, Entity Suspect, Ti
 
 /// <summary>A guard caught a suspect.</summary>
 public readonly record struct ArrestEvent(ulong Tick, Entity Guard, Entity Prisoner, TilePos Position);
+
+// ---- Escapist mechanics (PLAN §7.8): every mechanic reports itself on the bus so the
+// ---- Staff AI, telemetry and heat maps react to the same signals without hard wiring.
+
+public readonly record struct ItemPickedUpEvent(ulong Tick, Entity Actor, string ItemId, TilePos Position);
+
+public readonly record struct ItemCraftedEvent(ulong Tick, Entity Actor, string RecipeId, string OutputItemId);
+
+/// <summary>A diggable floor tile was tunnelled through.</summary>
+public readonly record struct TileDugEvent(ulong Tick, Entity Actor, TilePos Position);
+
+/// <summary>A cuttable wall tile (fence) was cut open.</summary>
+public readonly record struct FenceCutEvent(ulong Tick, Entity Actor, TilePos Position);
+
+public readonly record struct DoorUnlockedEvent(ulong Tick, Entity Actor, TilePos Position);
+
+public readonly record struct DoorToggledEvent(ulong Tick, Entity Actor, TilePos Position, bool Open);
+
+/// <summary>An entity donned (Role != null) or removed (Role == null) a disguise.</summary>
+public readonly record struct DisguiseChangedEvent(ulong Tick, Entity Actor, string? Role);
+
+/// <summary>A guard got close enough to see through a prisoner's disguise (PLAN §7.8).</summary>
+public readonly record struct DisguiseCompromisedEvent(ulong Tick, Entity Guard, Entity Prisoner, TilePos Position);
+
+/// <summary>An item was thrown to create noise somewhere else (diversion).</summary>
+public readonly record struct DiversionEvent(ulong Tick, Entity Actor, string ItemId, TilePos Target);

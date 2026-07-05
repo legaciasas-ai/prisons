@@ -181,6 +181,21 @@
       ]
     }
   ],
+  "items": [
+    { "id": "spoon", "floor": 0, "x": 6, "y": 4 },
+    { "id": "stick", "floor": 0, "x": 31, "y": 5 },
+    { "id": "rock", "floor": 0, "x": 32, "y": 10 },
+    { "id": "scrap_metal", "floor": 0, "x": 10, "y": 15 },
+    { "id": "wire", "floor": 0, "x": 20, "y": 16 },
+    { "id": "wire_cutters", "floor": 0, "x": 24, "y": 11 },
+    { "id": "guard_uniform", "floor": 1, "x": 7, "y": 5 }
+  ],
+  "doors": [
+    { "floor": 0, "x": 8, "y": 14, "locked": false },
+    { "floor": 0, "x": 9, "y": 14, "locked": false },
+    { "floor": 0, "x": 12, "y": 17, "locked": true },
+    { "floor": 0, "x": 13, "y": 17, "locked": true }
+  ],
   "player_spawn": {
     "floor": 0,
     "x": 5,

@@ -39,11 +39,13 @@ public partial class Main : Node2D
 
         var contentRoot = ResolveContentRoot();
         var tiles = TileRegistry.LoadFromDirectory(Path.Combine(contentRoot, "tiles"));
+        var items = Prison.Shared.Items.ItemRegistry.LoadFromDirectory(Path.Combine(contentRoot, "items"));
+        var recipes = Prison.Shared.Items.RecipeDefinition.LoadFromDirectory(Path.Combine(contentRoot, "recipes"));
         var map = MapDefinition.Load(Path.Combine(contentRoot, "maps", "test_prison.json"));
         _world = map.BuildWorld(tiles);
         _fog = new FogOfWarMap(_world);
 
-        var match = MatchFactory.Create(_world, map);
+        var match = MatchFactory.Create(_world, map, items, recipes);
         _simulation = match.Simulation;
         _player = match.Player;
 

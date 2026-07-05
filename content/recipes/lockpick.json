@@ -1,0 +1,6 @@
+{
+  "id": "craft_lockpick",
+  "output": "lockpick",
+  "ingredients": ["wire", "spoon"],
+  "craft_seconds": 2
+}

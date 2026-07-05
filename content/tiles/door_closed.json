@@ -1,0 +1,13 @@
+{
+  "id": "door_closed",
+  "display_name": "Metal Door (closed)",
+  "walkable": false,
+  "movement_cost": 0.0,
+  "visibility_transparency": 0.0,
+  "sound_transmission": 0.3,
+  "can_dig": false,
+  "can_burn": false,
+  "can_place_furniture": false,
+  "can_flood": false,
+  "tags": ["wall", "door"]
+}

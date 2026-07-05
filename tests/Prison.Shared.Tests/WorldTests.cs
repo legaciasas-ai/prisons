@@ -11,9 +11,13 @@ public class WorldTests(TestContent content)
     {
         var tiles = content.Tiles;
 
+        // Concrete resists digging — it is the Evolution AI's canonical anti-tunnel
+        // countermeasure (PLAN §8.1), so it must not be tunnelable in the first place.
         var concreteFloor = tiles.Get(tiles.IdOf("concrete_floor"));
         Assert.True(concreteFloor.Walkable);
-        Assert.True(concreteFloor.CanDig);
+        Assert.False(concreteFloor.CanDig);
+
+        Assert.True(tiles.Get(tiles.IdOf("dirt")).CanDig);
 
         var wall = tiles.Get(tiles.IdOf("concrete_wall"));
         Assert.False(wall.Walkable);
