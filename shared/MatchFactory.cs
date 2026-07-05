@@ -35,16 +35,17 @@ public static class MatchFactory
     public const float PlayerWalkSpeed = 3.5f;
     public const float InitialPrisonerThreat = 10f;
 
-    public static MatchHandle Create(
-        WorldGrid world, MapDefinition map,
-        ItemRegistry? items = null,
-        IReadOnlyList<RecipeDefinition>? recipes = null,
-        ILoggerFactory? loggerFactory = null,
-        bool includeMapGuards = true)
-    {
-        items ??= new ItemRegistry();
-        recipes ??= [];
+    /// <summary>The systems + recorders of a match, before any entity exists (used by save loading).</summary>
+    public sealed record BareMatch(
+        Simulation Simulation, PathfindingService Pathfinding,
+        TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay);
 
+    /// <summary>Assembles the canonical system lineup with no entities spawned.</summary>
+    public static BareMatch CreateBare(
+        WorldGrid world, MapDefinition map,
+        ItemRegistry items, IReadOnlyList<RecipeDefinition> recipes,
+        ILoggerFactory? loggerFactory = null)
+    {
         var simulation = new Simulation(logger: loggerFactory?.CreateLogger<Simulation>());
         var events = simulation.Events;
         var pathfinding = new PathfindingService(new HierarchicalPathfinder(world));
@@ -70,6 +71,22 @@ public static class MatchFactory
         simulation.AddSystem(new NavAgentSystem());
         simulation.AddSystem(new PathfindingSystem(pathfinding));
         simulation.AddSystem(escape);
+
+        return new BareMatch(simulation, pathfinding, telemetry, escape, replay);
+    }
+
+    public static MatchHandle Create(
+        WorldGrid world, MapDefinition map,
+        ItemRegistry? items = null,
+        IReadOnlyList<RecipeDefinition>? recipes = null,
+        ILoggerFactory? loggerFactory = null,
+        bool includeMapGuards = true)
+    {
+        items ??= new ItemRegistry();
+        recipes ??= [];
+
+        var bare = CreateBare(world, map, items, recipes, loggerFactory);
+        var (simulation, pathfinding, telemetry, escape, replay) = bare;
 
         var spawn = map.PlayerSpawn.Position;
         var player = simulation.World.Create(

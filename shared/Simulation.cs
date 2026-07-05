@@ -42,6 +42,9 @@ public sealed class Simulation : IDisposable
 
     public ulong CurrentTick { get; private set; }
 
+    /// <summary>Restores the tick counter when loading a save (PLAN §7.12).</summary>
+    public void RestoreTick(ulong tick) => CurrentTick = tick;
+
     public SimTime Time => new(CurrentTick, FixedDeltaSeconds);
 
     /// <summary>
