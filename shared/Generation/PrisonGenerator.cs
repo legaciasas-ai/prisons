@@ -125,7 +125,7 @@ public sealed class PrisonGenerator(IReadOnlyList<BlueprintDefinition> blueprint
         var housed = 0;
         while (housed < intent.Capacity)
         {
-            var block = cellBlocks[rng.Next(cellBlocks.Count)];
+            var block = PickWeighted(cellBlocks, intent, rng);
             rooms.Add(block);
             housed += Math.Max(1, block.Capacity);
         }
@@ -135,16 +135,29 @@ public sealed class PrisonGenerator(IReadOnlyList<BlueprintDefinition> blueprint
             var candidates = blueprints.Where(b => b.Type == type).ToList();
             if (candidates.Count == 0)
                 throw new InvalidOperationException($"Blueprint library has no '{type}' blueprint");
-            rooms.Add(candidates[rng.Next(candidates.Count)]);
+            rooms.Add(PickWeighted(candidates, intent, rng));
         }
 
         var stations = blueprints.Where(b => b.Type == "guard_station").ToList();
         if (stations.Count == 0)
             throw new InvalidOperationException("Blueprint library has no guard_station blueprint");
         for (var i = 0; i < intent.GuardStations; i++)
-            rooms.Add(stations[rng.Next(stations.Count)]);
+            rooms.Add(PickWeighted(stations, intent, rng));
 
         return rooms;
+    }
+
+    /// <summary>Family-preferred blueprints (§8.1 DNA) are three times as likely to be chosen.</summary>
+    private static BlueprintDefinition PickWeighted(
+        List<BlueprintDefinition> candidates, DesignIntent intent, Random rng)
+    {
+        if (intent.PreferredBlueprints.Count == 0)
+            return candidates[rng.Next(candidates.Count)];
+
+        var weighted = candidates
+            .SelectMany(b => Enumerable.Repeat(b, intent.PreferredBlueprints.Contains(b.Id) ? 3 : 1))
+            .ToList();
+        return weighted[rng.Next(weighted.Count)];
     }
 
     private static (List<BlueprintDefinition> North, List<BlueprintDefinition> South) SplitBalanced(

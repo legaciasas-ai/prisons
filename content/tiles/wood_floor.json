@@ -1,0 +1,13 @@
+{
+  "id": "wood_floor",
+  "display_name": "Worn Wood Floor",
+  "walkable": true,
+  "movement_cost": 1.0,
+  "visibility_transparency": 1.0,
+  "sound_transmission": 0.6,
+  "can_dig": false,
+  "can_burn": true,
+  "can_place_furniture": true,
+  "can_flood": false,
+  "tags": ["floor", "indoor"]
+}

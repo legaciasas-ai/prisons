@@ -1,0 +1,15 @@
+{
+  "id": "sunmesa",
+  "display_name": "Sun Mesa",
+  "architectural_dna": {
+    "style_kit": "desert_sandstone",
+    "decoration_rule_set": "overgrown",
+    "capacity": "medium",
+    "preferred_blueprints": ["cell_block_small"]
+  },
+  "warden_doctrine": {
+    "security_level": "low"
+  },
+  "current_generation": 1,
+  "parent_prison_id": null
+}

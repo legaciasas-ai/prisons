@@ -1,0 +1,8 @@
+{
+  "id": "brutalist_concrete",
+  "display_name": "Brutalist Concrete",
+  "wall_material": "concrete_wall",
+  "floor_material": "concrete_floor",
+  "window_material": "glass_wall",
+  "palette": ["#8a8a86", "#5c5c58", "#3a3a38"]
+}

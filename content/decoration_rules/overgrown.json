@@ -1,0 +1,9 @@
+{
+  "id": "overgrown",
+  "display_name": "Overgrown Grounds",
+  "rules": [
+    { "target_tile": "grass", "replacement_tile": "bush", "chance": 0.12 },
+    { "target_tile": "dirt", "replacement_tile": "bush", "chance": 0.04 },
+    { "target_tile": "concrete_floor", "replacement_tile": "cracked_floor", "chance": 0.04 }
+  ]
+}

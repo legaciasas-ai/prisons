@@ -1,0 +1,15 @@
+{
+  "id": "blackstone",
+  "display_name": "Blackstone",
+  "architectural_dna": {
+    "style_kit": "brutalist_concrete",
+    "decoration_rule_set": "aging_facility",
+    "capacity": "large",
+    "preferred_blueprints": ["cell_block_medium", "guard_station_small"]
+  },
+  "warden_doctrine": {
+    "security_level": "high"
+  },
+  "current_generation": 1,
+  "parent_prison_id": null
+}

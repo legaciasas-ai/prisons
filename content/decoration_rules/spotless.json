@@ -1,0 +1,7 @@
+{
+  "id": "spotless",
+  "display_name": "Spotless Maintenance",
+  "rules": [
+    { "target_tile": "grass", "replacement_tile": "bush", "chance": 0.01 }
+  ]
+}

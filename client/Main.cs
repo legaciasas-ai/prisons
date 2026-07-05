@@ -215,6 +215,16 @@ public partial class Main : Node2D
         "tunnel" => new Color(0.35f, 0.26f, 0.18f),
         "door_closed" => new Color(0.55f, 0.35f, 0.16f),
         "door_open" => new Color(0.75f, 0.58f, 0.35f),
+        "brick_wall" => new Color(0.48f, 0.23f, 0.18f),
+        "steel_wall" => new Color(0.35f, 0.40f, 0.44f),
+        "sandstone_wall" => new Color(0.66f, 0.54f, 0.31f),
+        "white_wall" => new Color(0.80f, 0.80f, 0.78f),
+        "wood_floor" => new Color(0.61f, 0.45f, 0.29f),
+        "tile_floor" => new Color(0.82f, 0.83f, 0.80f),
+        "sand_floor" => new Color(0.79f, 0.66f, 0.42f),
+        "cracked_floor" => new Color(0.52f, 0.52f, 0.49f),
+        "bush" => new Color(0.25f, 0.42f, 0.20f),
+        "tree" => new Color(0.15f, 0.30f, 0.13f),
         _ => new Color(0.05f, 0.05f, 0.06f),
     };
 

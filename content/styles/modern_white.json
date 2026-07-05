@@ -1,0 +1,8 @@
+{
+  "id": "modern_white",
+  "display_name": "Modern Clinical",
+  "wall_material": "white_wall",
+  "floor_material": "tile_floor",
+  "window_material": "glass_wall",
+  "palette": ["#e8e8e4", "#c9cdd0", "#9aa0a6"]
+}

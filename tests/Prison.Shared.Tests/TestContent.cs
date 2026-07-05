@@ -16,10 +16,19 @@ public sealed class TestContent
         Items = ItemRegistry.LoadFromDirectory(Path.Combine(root, "items"));
         Recipes = RecipeDefinition.LoadFromDirectory(Path.Combine(root, "recipes"));
         Blueprints = BlueprintDefinition.LoadFromDirectory(Path.Combine(root, "rooms"));
+        StyleKits = StyleKitDefinition.LoadFromDirectory(Path.Combine(root, "styles"));
+        DecorationRules = DecorationRuleSet.LoadFromDirectory(Path.Combine(root, "decoration_rules"));
+        Families = FamilyDefinition.LoadFromDirectory(Path.Combine(root, "families"));
         Map = MapDefinition.Load(Path.Combine(root, "maps", "test_prison.json"));
     }
 
     public IReadOnlyList<BlueprintDefinition> Blueprints { get; }
+
+    public IReadOnlyList<StyleKitDefinition> StyleKits { get; }
+
+    public IReadOnlyList<DecorationRuleSet> DecorationRules { get; }
+
+    public IReadOnlyList<FamilyDefinition> Families { get; }
 
     public TileRegistry Tiles { get; }
 

@@ -1,0 +1,9 @@
+{
+  "id": "aging_facility",
+  "display_name": "Aging Facility",
+  "rules": [
+    { "target_tile": "concrete_floor", "replacement_tile": "cracked_floor", "chance": 0.08 },
+    { "target_tile": "wood_floor", "replacement_tile": "cracked_floor", "chance": 0.05 },
+    { "target_tile": "grass", "replacement_tile": "bush", "chance": 0.05 }
+  ]
+}

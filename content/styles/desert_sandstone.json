@@ -1,0 +1,8 @@
+{
+  "id": "desert_sandstone",
+  "display_name": "Desert Sandstone",
+  "wall_material": "sandstone_wall",
+  "floor_material": "sand_floor",
+  "window_material": "glass_wall",
+  "palette": ["#c9a86a", "#a8894f", "#7d6437"]
+}

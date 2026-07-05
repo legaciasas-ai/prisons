@@ -21,6 +21,9 @@ public sealed record DesignIntent
 
     public SecurityLevel Security { get; init; } = SecurityLevel.Medium;
 
+    /// <summary>Family DNA blueprint preferences (§8.1) — weighted higher during selection.</summary>
+    public IReadOnlyList<string> PreferredBlueprints { get; init; } = [];
+
     /// <summary>Extra patrol guards beyond the ones each guard station provides.</summary>
     public int PatrolGuards => Security switch
     {

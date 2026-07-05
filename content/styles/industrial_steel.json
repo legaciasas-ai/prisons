@@ -1,0 +1,8 @@
+{
+  "id": "industrial_steel",
+  "display_name": "Industrial Steel",
+  "wall_material": "steel_wall",
+  "floor_material": "metal_floor",
+  "window_material": "glass_wall",
+  "palette": ["#5a6570", "#7d8790", "#38404a"]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "redbrick_victorian",
+  "display_name": "Victorian Red Brick",
+  "wall_material": "brick_wall",
+  "floor_material": "wood_floor",
+  "window_material": "glass_wall",
+  "palette": ["#7a3b2e", "#9c5a3c", "#4a2c20"]
+}
