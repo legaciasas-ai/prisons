@@ -1,0 +1,9 @@
+{
+  "id": "wire_cutters",
+  "display_name": "Wire Cutters",
+  "tags": ["tool", "contraband"],
+  "dig_seconds": 0,
+  "cut_seconds": 4,
+  "lockpick_seconds": 0,
+  "disguise_role": null
+}

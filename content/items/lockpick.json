@@ -1,0 +1,9 @@
+{
+  "id": "lockpick",
+  "display_name": "Lockpick",
+  "tags": ["tool", "contraband"],
+  "dig_seconds": 0,
+  "cut_seconds": 0,
+  "lockpick_seconds": 5,
+  "disguise_role": null
+}

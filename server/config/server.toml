@@ -1,0 +1,16 @@
+# Prison dedicated server configuration (PLAN §5: human-readable TOML).
+# All values here are host policy — they must never change simulation *rules* (Pillar #3).
+
+[server]
+name = "Prison Dev Server"
+# Fixed simulation tick rate (ticks per second). PLAN §7.11 baseline: 20.
+tick_rate = 20
+
+[logging]
+# Serilog minimum level: Verbose | Debug | Information | Warning | Error | Fatal
+level = "Information"
+
+[performance]
+# Server performance profile (PLAN §12.1): Lightweight | Balanced | HighCapacity | Dedicated
+# Phase 0: recorded but not yet consumed — the AI budget system arrives in Phase 9.
+profile = "Balanced"

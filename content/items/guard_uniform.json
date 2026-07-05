@@ -1,0 +1,9 @@
+{
+  "id": "guard_uniform",
+  "display_name": "Guard Uniform",
+  "tags": ["disguise", "contraband"],
+  "dig_seconds": 0,
+  "cut_seconds": 0,
+  "lockpick_seconds": 0,
+  "disguise_role": "guard"
+}

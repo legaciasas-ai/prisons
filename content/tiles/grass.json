@@ -1,0 +1,13 @@
+{
+  "id": "grass",
+  "display_name": "Grass",
+  "walkable": true,
+  "movement_cost": 1.1,
+  "visibility_transparency": 1.0,
+  "sound_transmission": 0.3,
+  "can_dig": true,
+  "can_burn": true,
+  "can_place_furniture": false,
+  "can_flood": true,
+  "tags": ["floor", "outdoor"]
+}

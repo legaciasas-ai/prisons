@@ -1,0 +1,51 @@
+# CI from day one (PLAN §15 / Phase 0): build client + server + shared, run unit tests,
+# and build the dedicated-server container image on every push.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore Prison.sln
+
+      - name: Build (client, server, shared, tests)
+        run: dotnet build Prison.sln -c Release --no-restore
+
+      - name: Test (shared simulation)
+        run: dotnet test Prison.sln -c Release --no-build --logger "trx;LogFileName=results.trx"
+
+  server-image:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dedicated server image
+        run: docker build -f server/Dockerfile -t prison-server:${{ github.sha }} .
+
+      - name: Push to GHCR (master only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          IMAGE="ghcr.io/${{ github.repository }}/game-server"
+          IMAGE="${IMAGE,,}"  # ghcr requires lowercase
+          docker tag prison-server:${{ github.sha }} "$IMAGE:${{ github.sha }}"
+          docker tag prison-server:${{ github.sha }} "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"

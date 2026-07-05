@@ -1,0 +1,22 @@
+# Prison — infrastructure stack (PLAN §5, Pillar #10: Docker Compose, no Kubernetes).
+#
+# Phase 0: only the dedicated game server container exists. Backend services
+# (PostgreSQL, Redis, MinIO, NATS, the Evolution Service, ...) join this stack in
+# Phase 12 (PLAN §11 / §14) — add them here, never as a separate orchestration layer.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.yml up -d --build
+
+name: prison
+
+services:
+  game-server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    image: prison/game-server:dev
+    container_name: prison-game-server
+    restart: unless-stopped
+    volumes:
+      # Host-editable server configuration (PLAN §5: human-readable config).
+      - ../server/config/server.toml:/app/config/server.toml:ro

@@ -1,0 +1,18 @@
+<Project Sdk="Godot.NET.Sdk/4.7.0">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Prison.Client</RootNamespace>
+    <!-- Assembly name must match [dotnet] project/assembly_name in project.godot. -->
+    <AssemblyName>prison</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The client renders and forwards input; all gameplay lives in the shared simulation (Pillar #5). -->
+    <ProjectReference Include="..\shared\Prison.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+{
+  "id": "metal_floor",
+  "display_name": "Metal Floor",
+  "walkable": true,
+  "movement_cost": 1.0,
+  "visibility_transparency": 1.0,
+  "sound_transmission": 0.9,
+  "can_dig": false,
+  "can_burn": false,
+  "can_place_furniture": true,
+  "can_flood": false,
+  "tags": ["floor", "indoor", "conducts_electricity"]
+}

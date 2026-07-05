@@ -1,0 +1,13 @@
+{
+  "id": "stairs",
+  "display_name": "Stairs",
+  "walkable": true,
+  "movement_cost": 1.5,
+  "visibility_transparency": 1.0,
+  "sound_transmission": 0.7,
+  "can_dig": false,
+  "can_burn": false,
+  "can_place_furniture": false,
+  "can_flood": false,
+  "tags": ["floor", "indoor", "stairs"]
+}

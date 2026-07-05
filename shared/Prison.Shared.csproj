@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Prison.Shared</RootNamespace>
+    <AssemblyName>Prison.Shared</AssemblyName>
+    <!-- The Core Simulation must stay engine-agnostic (PLAN §6): no Godot types in here. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Arch" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
+</Project>

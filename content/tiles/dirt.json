@@ -1,0 +1,13 @@
+{
+  "id": "dirt",
+  "display_name": "Dirt",
+  "walkable": true,
+  "movement_cost": 1.2,
+  "visibility_transparency": 1.0,
+  "sound_transmission": 0.4,
+  "can_dig": true,
+  "can_burn": false,
+  "can_place_furniture": false,
+  "can_flood": true,
+  "tags": ["floor", "outdoor"]
+}

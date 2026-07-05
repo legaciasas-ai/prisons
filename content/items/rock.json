@@ -1,0 +1,9 @@
+{
+  "id": "rock",
+  "display_name": "Rock",
+  "tags": ["throwable"],
+  "dig_seconds": 0,
+  "cut_seconds": 0,
+  "lockpick_seconds": 0,
+  "disguise_role": null
+}

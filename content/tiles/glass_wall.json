@@ -1,0 +1,13 @@
+{
+  "id": "glass_wall",
+  "display_name": "Glass Wall",
+  "walkable": false,
+  "movement_cost": 0.0,
+  "visibility_transparency": 0.9,
+  "sound_transmission": 0.3,
+  "can_dig": false,
+  "can_burn": false,
+  "can_place_furniture": false,
+  "can_flood": false,
+  "tags": ["wall", "indoor", "transparent"]
+}

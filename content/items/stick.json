@@ -1,0 +1,9 @@
+{
+  "id": "stick",
+  "display_name": "Wooden Stick",
+  "tags": ["material"],
+  "dig_seconds": 0,
+  "cut_seconds": 0,
+  "lockpick_seconds": 0,
+  "disguise_role": null
+}

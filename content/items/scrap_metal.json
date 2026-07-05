@@ -1,0 +1,9 @@
+{
+  "id": "scrap_metal",
+  "display_name": "Scrap Metal",
+  "tags": ["material", "contraband"],
+  "dig_seconds": 0,
+  "cut_seconds": 0,
+  "lockpick_seconds": 0,
+  "disguise_role": null
+}
