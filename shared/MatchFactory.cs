@@ -20,7 +20,7 @@ namespace Prison.Shared;
 public sealed record MatchHandle(
     Simulation Simulation, PathfindingService Pathfinding, Entity Player,
     TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay,
-    SimulationBudget Budget)
+    SimulationBudget Budget, Evolution.EscapeReportBuilder Report)
 {
     /// <summary>Persists this match's full telemetry (journal, escape record, replay) to disk.</summary>
     public void WriteTelemetry(string directory) =>
@@ -41,7 +41,7 @@ public static class MatchFactory
     public sealed record BareMatch(
         Simulation Simulation, PathfindingService Pathfinding,
         TelemetryRecorder Telemetry, EscapeRecorder Escape, ReplayRecorder Replay,
-        SimulationBudget Budget);
+        SimulationBudget Budget, Evolution.EscapeReportBuilder Report);
 
     /// <summary>Assembles the canonical system lineup with no entities spawned.</summary>
     public static BareMatch CreateBare(
@@ -60,6 +60,7 @@ public static class MatchFactory
         var telemetry = new TelemetryRecorder(events);
         var replay = new ReplayRecorder(events);
         var escape = new EscapeRecorder();
+        var report = new Evolution.EscapeReportBuilder(map.Id, events);
 
         // Canonical system order: replay tick-stamp first, then player intent → interactions →
         // movement sounds → senses → beliefs → decisions → actions → navigation → shared
@@ -80,8 +81,9 @@ public static class MatchFactory
         simulation.AddSystem(new NavAgentSystem());
         simulation.AddSystem(new PathfindingSystem(pathfinding, budget));
         simulation.AddSystem(escape);
+        simulation.AddSystem(new EscapeDetectionSystem(world, events));
 
-        return new BareMatch(simulation, pathfinding, telemetry, escape, replay, budget);
+        return new BareMatch(simulation, pathfinding, telemetry, escape, replay, budget, report);
     }
 
     /// <param name="includePlayer">
@@ -101,7 +103,7 @@ public static class MatchFactory
         recipes ??= [];
 
         var bare = CreateBare(world, map, items, recipes, loggerFactory, budget);
-        var (simulation, pathfinding, telemetry, escape, replay, activeBudget) = bare;
+        var (simulation, pathfinding, telemetry, escape, replay, activeBudget, report) = bare;
 
         var player = includePlayer ? SpawnPrisoner(simulation, map) : default;
 
@@ -121,7 +123,7 @@ public static class MatchFactory
             simulation.World.Create(door);
         }
 
-        return new MatchHandle(simulation, pathfinding, player, telemetry, escape, replay, activeBudget);
+        return new MatchHandle(simulation, pathfinding, player, telemetry, escape, replay, activeBudget, report);
     }
 
     /// <summary>Spawns a player-controllable prisoner at the map's spawn point — the same

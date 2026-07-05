@@ -263,7 +263,7 @@ public static class MatchSave
             state.HasChaseTarget = true;
         }
 
-        return new MatchHandle(simulation, bare.Pathfinding, player, bare.Telemetry, bare.Escape, bare.Replay, bare.Budget);
+        return new MatchHandle(simulation, bare.Pathfinding, player, bare.Telemetry, bare.Escape, bare.Replay, bare.Budget, bare.Report);
     }
 
     private static void WriteTilePos(BinaryWriter w, TilePos pos)

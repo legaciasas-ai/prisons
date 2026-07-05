@@ -64,3 +64,10 @@ public readonly record struct DisguiseCompromisedEvent(ulong Tick, Entity Guard,
 
 /// <summary>An item was thrown to create noise somewhere else (diversion).</summary>
 public readonly record struct DiversionEvent(ulong Tick, Entity Actor, string ItemId, TilePos Target);
+
+/// <summary>
+/// A prisoner physically made it out of the compound (reached the map border). The signal
+/// that marks a prison Compromised (§10.2) and closes an escape record for the Evolution
+/// pipeline (§9.1). Fired once per prisoner per match.
+/// </summary>
+public readonly record struct EscapeSucceededEvent(ulong Tick, Entity Prisoner, TilePos Position);

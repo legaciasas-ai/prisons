@@ -46,7 +46,7 @@ public sealed class PrisonGenerator(IReadOnlyList<BlueprintDefinition> blueprint
 
         var width = compoundW + 2 * PerimeterOffset;
         var height = compoundH + 2 * PerimeterOffset;
-        var canvas = NewCanvas(width, height);
+        var canvas = NewCanvas(width, height, intent, rng);
 
         // Corridor spine.
         var corrY0 = PerimeterOffset + northMaxH;
@@ -83,8 +83,10 @@ public sealed class PrisonGenerator(IReadOnlyList<BlueprintDefinition> blueprint
                 canvas[corrY0 + CorridorHeight][x] = '#';
         }
 
-        // The perimeter gate: a locked door punched through the south fence.
-        doors.Add(new MapDefinition.MapDoor { X = width / 2, Y = height - 3, Locked = true });
+        // The perimeter gate: locked doors punched through *every* fence ring, aligned so
+        // logistics stay believable no matter how many layers the doctrine has stacked up.
+        for (var ring = 2; ring < 2 + Math.Clamp(intent.FenceLayers, 1, 3); ring++)
+            doors.Add(new MapDefinition.MapDoor { X = width / 2, Y = height - 1 - ring, Locked = true });
 
         return Compose(intent, rng, canvas, width, height, placements, doors);
     }
@@ -189,23 +191,34 @@ public sealed class PrisonGenerator(IReadOnlyList<BlueprintDefinition> blueprint
 
     // ---------- canvas & stamping ----------
 
-    private static char[][] NewCanvas(int width, int height)
+    private static char[][] NewCanvas(int width, int height, DesignIntent intent, Random rng)
     {
+        // Doctrine counter-measures (§9.2): extra fence rings eat into the dirt strip, and
+        // hardened ground pours concrete over a share of what remains diggable.
+        var fenceLayers = Math.Clamp(intent.FenceLayers, 1, 3);
+        var lastFenceRing = 1 + fenceLayers;
+
         var canvas = new char[height][];
         for (var y = 0; y < height; y++)
         {
             canvas[y] = new char[width];
             for (var x = 0; x < width; x++)
             {
-                // Ring index from the map edge: grass(0-1), fence(2), dirt strip(3-4), yard inside.
+                // Ring index from the map edge: grass(0-1), fence ring(s), dirt strip, yard inside.
                 var ring = Math.Min(Math.Min(x, y), Math.Min(width - 1 - x, height - 1 - y));
-                canvas[y][x] = ring switch
+                var glyph = ring switch
                 {
                     < 2 => ',',
-                    2 => 'f',
+                    _ when ring <= lastFenceRing => 'f',
                     < 5 => 'd',
                     _ => ',',
                 };
+                if (glyph == 'd' && intent.HardenedGroundBias > 0f
+                    && rng.NextSingle() < intent.HardenedGroundBias)
+                {
+                    glyph = '.';
+                }
+                canvas[y][x] = glyph;
             }
         }
 
@@ -279,11 +292,26 @@ public sealed class PrisonGenerator(IReadOnlyList<BlueprintDefinition> blueprint
             guards.Add(new MapDefinition.MapGuard { X = start[0], Y = start[1], Patrol = rotated });
         }
 
+        // Doctrine counter-measure (§9.2 "no patrol near east fence"): a dedicated route
+        // hugging the inside of the innermost fence ring, all four sides.
+        if (intent.PerimeterPatrol)
+        {
+            var o = 2 + Math.Clamp(intent.FenceLayers, 1, 3); // first ring inside the fences
+            List<int[]> ring =
+                [[o, o], [width - 1 - o, o], [width - 1 - o, height - 1 - o], [o, height - 1 - o]];
+            guards.Add(new MapDefinition.MapGuard { X = o, Y = o, Patrol = ring });
+        }
+
         var items = new List<MapDefinition.MapItem>();
         foreach (var p in placements)
         {
             foreach (var item in p.Blueprint.Items)
             {
+                // Doctrine counter-measure (§9.2 "restricted uniform access"): staff clothing
+                // no longer lies around. v1 keys off the item id; a registry tag can replace
+                // this once generation-time item metadata exists.
+                if (intent.RestrictedUniformAccess && item.Id.Contains("uniform", StringComparison.Ordinal))
+                    continue;
                 var y = p.Mirrored ? p.Blueprint.Height - 1 - item.Y : item.Y;
                 items.Add(new MapDefinition.MapItem { Id = item.Id, X = p.X + item.X, Y = p.Y + y });
             }
